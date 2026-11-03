@@ -4255,7 +4255,7 @@ document.addEventListener('change',function(e){
     else{var cd=certDraft(cs0)[cn0.toLowerCase()];if(c==='certbox'){cd.on=!!el.checked;if(!cd.on)cd.exp=''}else cd.exp=el.value}
   }
   else if(c==='svcnewmode'){
-    var alPk=document.getElementById('aln_pick');if(alPk)alPk.hidden=el.value!=='provider';   /* the add form just shows or hides the picker; nothing is saved yet */
+    var alPk=document.getElementById('aln_pick');if(alPk)alPk.hidden=el.value!=='provider';return;   /* pure show/hide in the add form: bail early like newEvery / bkseqnew / bkgnew do, or the shared paint() rebuilds the form and wipes every field the person has typed */
   }
   else if(c==='svcprov'){
     if(!canRules())return;var sp2=svcOf(el.dataset.id);if(!sp2)return;
