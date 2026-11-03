@@ -898,7 +898,28 @@ function me(){var u=realMe();if(u&&u.role==='owner'&&DB.session.as){var v=B().us
 function activeStaff(){return B().staff.filter(function(s){return s.active})}
 function activeLocs(){return B().locations.filter(function(l){return l.active})}
 /* vocabulary: always a non-empty string, falling back to universal defaults */
-var LBDEF={staff:'Provider',staffPlural:'Providers',client:'Customer',session:'Appointment'};
+/* ===== INDUSTRY PACKS — GENERATED FROM THE DATABASE, DO NOT HAND-EDIT =====
+   Regenerated from GET /api/packs on 03 Nov 2026 12:54.
+   industry_packs is the single source of truth; this block is a build artifact of it,
+   kept in the file so the page still works with no server (and in the demo).
+   To change a word, change the row and regenerate: python3 build-app-pack.py
+   ===== */
+var PACKS = {"aquatics":{"key":"aquatics","label":"Aquatics and swim coaching networks","sort_order":20,"words":{"name":"Aquatics and swim school","provider":"Instructor","providerPlural":"Instructors","consumer":"Swimmer","booking":"Lesson","consumerPlural":"Swimmers","bookingPlural":"Lessons","place":"Lane","placePlural":"Lanes","group":"Class","groupPlural":"Classes","week":"Roster","package":"Pass","packagePlural":"Passes"}},"home_services":{"key":"home_services","label":"Home services and HVAC systems","sort_order":40,"words":{"name":"Home services and HVAC","provider":"Service specialist","providerPlural":"Service specialists","consumer":"Client","booking":"Appointment","consumerPlural":"Clients","bookingPlural":"Appointments","place":"Address","placePlural":"Addresses","group":"Team","groupPlural":"Teams","week":"Schedule","package":"Maintenance plan","packagePlural":"Maintenance plans"}},"fleet":{"key":"fleet","label":"Fleet logistics and field crews","sort_order":30,"words":{"name":"Fleet logistics","provider":"Technician","providerPlural":"Technicians","consumer":"Account","booking":"Service visit","consumerPlural":"Accounts","bookingPlural":"Service visits","place":"Bay","placePlural":"Bays","group":"Crew","groupPlural":"Crews","week":"Route","package":"Service plan","packagePlural":"Service plans"}},"generic":{"key":"generic","label":"Universal scheduling (generic)","sort_order":10,"words":{"name":"Universal service","provider":"Provider","providerPlural":"Providers","consumer":"Consumer","booking":"Booking","consumerPlural":"Consumers","bookingPlural":"Bookings","place":"Location","placePlural":"Locations","group":"Class","groupPlural":"Classes","week":"Schedule","package":"Package","packagePlural":"Packages"}}};
+/* Map a pack's words onto the label keys the page already uses (staff/staffPlural/...). */
+function packLabels(k){
+  var p=PACKS[k]||PACKS.generic||{words:{}},w=p.words||{};
+  function s(v,f){return (typeof v==='string'&&v.trim())?v.trim():f}
+  return {staff:s(w.provider,'Provider'),staffPlural:s(w.providerPlural,'Providers'),
+    client:s(w.consumer,'Customer'),clientPlural:s(w.consumerPlural,'Customers'),
+    session:s(w.booking,'Appointment'),sessionPlural:s(w.bookingPlural,'Appointments'),
+    place:s(w.place,'Location'),placePlural:s(w.placePlural,'Locations'),
+    group:s(w.group,'Class'),groupPlural:s(w.groupPlural,'Classes'),
+    week:s(w.week,'Schedule'),package:s(w.package,'Package'),packagePlural:s(w.packagePlural,'Packages')};
+}
+/* The fallback words, used only if a business names no pack. The pack supplies the rest. */
+var LBDEF={staff:'Provider',staffPlural:'Providers',client:'Customer',clientPlural:'Customers',
+  session:'Appointment',sessionPlural:'Appointments',place:'Location',placePlural:'Locations',
+  group:'Class',groupPlural:'Classes',week:'Schedule',package:'Package',packagePlural:'Packages'};
 function indef(w){return /^[aeiou]/i.test(w)?'an ':'a '}   /* a / an before a vocabulary word */
 function LB(){var l=(B()&&B().labels)||{},o={};Object.keys(LBDEF).forEach(function(k){var v=l[k];o[k]=(typeof v==='string'&&v.trim())?v.trim():LBDEF[k]});return o}
 
@@ -952,7 +973,7 @@ function seedAssign(b){
 function freshDB(){
   var db={session:null,biz:{}};
   var n=mkBiz({id:'nss',slug:'northside',name:'Northside Swim Studio',
-    labels:{staff:'Provider',staffPlural:'Providers',client:'Customer',session:'Appointment'},
+    pack:'aquatics',labels:packLabels('aquatics'),
     locs:[['Lakeside Pool','Indoor, 6 lanes, 82°F',wk([7,20],[8,16],[9,15]),[[15,19,2],[15,19,1,2]]],['Maple Street Rec','Warm-water teaching pool, 90°F',[null,[9,19],[9,19],[9,19],[9,19],[9,17],null],[]]],
     services:[['30-minute lesson',30,3500],['60-minute private lesson',60,6500],['Parent and child (30 min)',30,2500]],customer:['Casey Morgan','casey@northside.test'],people:[['Mia Morgan',6],['Noah Morgan',9]],classes:[['Instructor',true,'Water Safety Instructor'],['Lifeguard',false,'Lifeguard']],owner:['Alex Morgan','owner@northside.test'],manager:['Priya Shah','manager@northside.test'],
     staff:[
@@ -963,7 +984,7 @@ function freshDB(){
       {name:'Aiden Brooks',title:'Lifeguard',cls:[2],max:12,pay:2000,locs:[1],email:'aiden@northside.test',av:['e','ae','e','ae','ape','ap','ape'],certs:[['Lifeguard',-5],['CPR/AED',150]]}
     ]});
   var h=mkBiz({id:'hba',slug:'harbor',name:'Harbor Aquatics',
-    labels:{staff:'Provider',staffPlural:'Providers',client:'Customer',session:'Appointment'},
+    pack:'aquatics',labels:packLabels('aquatics'),
     locs:[['Bayview Water Park','Seasonal, 3 slides',wk([10,18],[10,18],[10,18]),[[11,16,2]]],['Civic Center Pool','Year-round, 8 lanes',wk([6,21],[8,18],[8,18]),[[17,20,2],[9,17,1,2]]],['Hillcrest HOA Pool','Community pool',wk([11,19],[11,19],[11,19]),[]]],
     services:[['Half-hour check-in',30,2500],['One-hour guard session',60,4500],['Two-hour guard session',120,8000]],customer:['Taylor Reed','taylor@harbor.test'],people:[['Reed Family Pool',''],['Taylor Reed',34]],classes:[['Guard',true,'Lifeguard'],['Head guard',false,'First aid']],owner:['Jordan Reyes','owner@harbor.test'],manager:['Camille Dubois','manager@harbor.test'],
     staff:[
@@ -2810,7 +2831,25 @@ function shell(inner){
   '<div class="me"><div class="who2"><span class="ini">'+esc(initials(u.name))+'</span><div style="min-width:0"><b>'+esc(u.name)+'</b><span>'+ROLEWORD[u.role]+(u.role==='employee'?' · '+esc(staffOf(u.staffId).title):'')+'</span></div></div><button class="btn sm" data-a="logout">Sign out</button></div></aside>'+
   '<div class="content">'+(sup?aiRail(true):'')+asBanner()+adminBanner()+hoursCardHtml()+inner+'<div class="foot"><span>Prototype with sample data, saved in this browser.</span><button class="btn sm" data-a="reset">Reset demo data</button></div></div></div>';
 }
-function navLabel(role,n){if(role==='customer'&&n[0]==='book')return 'Book '+indef(LB().session)+LB().session.toLowerCase();if(role==='manager'&&n[0]==='team')return LB().staffPlural;if(role==='owner'&&n[0]==='staff')return LB().staffPlural;return n[1]}
+function navLabel(role,n){
+  var L=LB(),k=n[0];
+  var T={
+    /* the week views — the three that describe one object, flagged for the merge */
+    roster:L.week, schedule:'Master '+L.week.toLowerCase(), calendar:(role==='employee'?'My availability':'Calendar'),
+    /* the employee's own things */
+    shifts:'My '+L.sessionPlural, availability:'Usual hours', profile:'Hours and certifications',
+    facility:'Facility hours',
+    /* the desk and the rules */
+    hours:'Hours and staffing', booking:'Booking and pricing',
+    team:L.staffPlural, staff:L.staffPlural,
+    /* the customer's side */
+    book:'Book '+indef(L.session)+L.session.toLowerCase(), mine:'My '+L.sessionPlural,
+    packages:'My '+L.packagePlural, people:'My '+L.clientPlural.toLowerCase(),
+    /* platform */
+    overview:'Overview', console:'Businesses', audit:'Audit log'
+  };
+  return (T[k]!==undefined && T[k]!==null && T[k]!=='') ? T[k] : n[1];
+}
 
 /* ---------- EMPLOYEE portal ---------- */
 function pgProfile(){
