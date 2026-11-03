@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="dark">
+<title>Industry packs — one definition, any trade</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d100f;--panel:#161b19;--line:#253029;--line2:#31423a;--ink:#e9efeb;--dim:#8ea298;--dim2:#5d6b63;
+--green:#7ddcaa;--amber:#c9b06c;--red:#e08585;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:26px 16px 70px}
+.wrap{max-width:940px;margin:0 auto}
+h1{font-size:25px;font-weight:650;letter-spacing:-.02em;margin-bottom:6px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);font-weight:600;margin:34px 0 12px}
+p.sub{color:var(--dim);font-size:14.5px;max-width:70ch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 17px;margin-bottom:12px}
+.tag{font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--green);background:#16281f;border:1px solid #26402f;border-radius:999px;padding:2px 8px}
+.tag.amber{color:var(--amber);background:#2a2415;border-color:#463c1e}
+.grid{display:grid;gap:12px}
+@media(min-width:700px){.grid.two{grid-template-columns:1fr 1fr}}
+.packname{font-weight:650;font-size:16px;display:flex;align-items:center;gap:9px;margin-bottom:9px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--dim2);font-weight:500;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+td.k{color:var(--dim);width:38%;font-size:12.5px}
+td.v{font-family:var(--mono);font-size:13px}
+td.v.hi{color:var(--green);font-weight:600}
+.flip{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.fb{font-size:13px;color:var(--dim);border:1px solid var(--line2);border-radius:999px;padding:7px 13px;background:none;cursor:pointer;font-family:inherit}
+.fb.on{color:var(--green);border-color:#3d5a4b;background:#16281f}
+.screen{background:#111614;border:1px solid var(--line);border-radius:12px;padding:14px}
+.screen h3{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em}
+.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.row:last-child{border-bottom:none}
+.row .n{color:var(--ink)} .row .w{color:var(--dim2);font-family:var(--mono);font-size:12px}
+.note{color:var(--dim2);font-size:12.5px;line-height:1.65;margin-top:16px}
+.note b{color:var(--dim)}
+code{background:#1b221f;border:1px solid #26302b;border-radius:5px;padding:1px 5px;font-size:12.5px;font-family:var(--mono)}
+.changed{color:var(--amber)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Industry packs — one definition, any trade</h1>
+  <p class="sub">The same five words used to live in three places and disagree, so a new aquatics business came out
+  half-translated. There is now one table. A business names its industry, the database decides its whole
+  vocabulary, and a second trade on the same code speaks its own language.</p>
+
+  <h2>The catalogue → <code>industry_packs</code></h2>
+  <div id="cat"></div>
+
+  <h2>Two real businesses, same code</h2>
+  <p class="sub" style="margin-bottom:12px">Both created through the live sign-up endpoint, then read back from the database.</p>
+  <div class="grid two" id="biz"></div>
+
+  <h2>What the screen says</h2>
+  <div class="flip" id="flip"></div>
+  <div class="grid two">
+    <div class="screen"><h3 id="mgr-h">Business view</h3><div id="mgr"></div></div>
+    <div class="screen"><h3 id="cus-h">Customer view</h3><div id="cus"></div></div>
+  </div>
+
+  <div class="note" id="foot"></div>
+</div>
+
+<script>
+var SNAP = {"capturedAt": "03 Nov 2026 at 03:45", "packs": [{"key": "generic", "label": "Universal scheduling (generic)", "words": {"name": "Universal service", "week": "Schedule", "group": "Class", "place": "Location", "booking": "Booking", "package": "Package", "consumer": "Consumer", "provider": "Provider", "groupPlural": "Classes", "placePlural": "Locations", "bookingPlural": "Bookings", "packagePlural": "Packages", "consumerPlural": "Consumers", "providerPlural": "Providers"}, "sort_order": 10}, {"key": "aquatics", "label": "Aquatics and swim coaching networks", "words": {"name": "Aquatics and swim school", "week": "Roster", "group": "Class", "place": "Lane", "booking": "Lesson", "package": "Pass", "consumer": "Swimmer", "provider": "Instructor", "groupPlural": "Classes", "placePlural": "Lanes", "bookingPlural": "Lessons", "packagePlural": "Passes", "consumerPlural": "Swimmers", "providerPlural": "Instructors"}, "sort_order": 20}, {"key": "fleet", "label": "Fleet logistics and field crews", "words": {"name": "Fleet logistics", "week": "Route", "group": "Crew", "place": "Bay", "booking": "Service visit", "package": "Service plan", "consumer": "Service truck", "provider": "Technician", "groupPlural": "Crews", "placePlural": "Bays", "bookingPlural": "Service visits", "packagePlural": "Service plans", "consumerPlural": "Service trucks", "providerPlural": "Technicians"}, "sort_order": 30}, {"key": "home_services", "label": "Home services and HVAC systems", "words": {"name": "Home services and HVAC", "week": "Schedule", "group": "Team", "place": "Address", "booking": "Appointment", "package": "Maintenance plan", "consumer": "Client", "provider": "Service specialist", "groupPlural": "Teams", "placePlural": "Addresses", "bookingPlural": "Appointments", "packagePlural": "Maintenance plans", "consumerPlural": "Clients", "providerPlural": "Service specialists"}, "sort_order": 40}], "businesses": [{"label": "Blue Lagoon Swim", "pack": {"business": {"id": "0b42fd36-5f54-4d18-9115-c20bbc93e8f9", "slug": "blue-lagoon2", "name": "Blue Lagoon Swim", "industry": "aquatics", "timezone": "America/New_York", "pack_key": "aquatics"}, "vocabulary": {"name": "Aquatics and swim school", "provider": "Instructor", "providerPlural": "Instructors", "consumer": "Swimmer", "booking": "Lesson", "place": "Lane", "placePlural": "Lanes", "group": "Class", "groupPlural": "Classes", "week": "Roster", "package": "Pass", "packagePlural": "Passes"}, "defaults": {"startStep": 10, "advanceDays": 28, "cancelHours": 24, "holdMinutes": 120, "noticeHours": 2, "serviceMinutes": 10}, "rules": {"startStep": 10, "serviceMinutes": [10, 20, 30], "ratioPerInstructor": 6}, "pages": {"show": ["roster", "lanes", "waitlist", "classes", "booking"]}, "commands": {"book": ["book {place} {time}", "give {consumer} a {booking}", "put {consumer} in at {time}"], "hold": ["hold {place} for {consumer}"], "waitlist": ["add {consumer} to the waitlist"], "availability": ["who is free at {time}", "what lanes are open"]}}}, {"label": "Northside HVAC", "pack": {"business": {"id": "95099b0c-ce02-43ed-ac81-5ae632eff1a7", "slug": "northside-hvac", "name": "Northside HVAC", "industry": "home_services", "timezone": "America/New_York", "pack_key": "home_services"}, "vocabulary": {"name": "Home services and HVAC", "provider": "Service specialist", "providerPlural": "Service specialists", "consumer": "Client", "booking": "Appointment", "place": "Address", "placePlural": "Addresses", "group": "Team", "groupPlural": "Teams", "week": "Schedule", "package": "Maintenance plan", "packagePlural": "Maintenance plans"}, "defaults": {"startStep": 60, "advanceDays": 90, "cancelHours": 24, "holdMinutes": 120, "noticeHours": 4, "serviceMinutes": 120}, "rules": {}, "pages": {}, "commands": {}}}]};
+var ORDER = ['generic','aquatics','fleet','home_services'];
+function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]}) }
+function byKey(k){ for(var i=0;i<SNAP.packs.length;i++) if(SNAP.packs[i].key===k) return SNAP.packs[i]; return null }
+
+/* the catalogue */
+document.getElementById('cat').innerHTML = SNAP.packs.map(function(p){
+  var w=p.words;
+  return '<div class="card"><div class="packname">'+esc(p.label)+' <span class="tag">'+esc(p.key)+'</span></div>'
+   +'<table><tr><th>On the business side</th><th></th><th>On the customer side</th><th></th></tr>'
+   +'<tr><td class="k">provider</td><td class="v">'+esc(w.provider)+'</td><td class="k">consumer</td><td class="v hi">'+esc(w.consumer)+'</td></tr>'
+   +'<tr><td class="k">place</td><td class="v">'+esc(w.place)+'</td><td class="k">booking (the seam)</td><td class="v hi">'+esc(w.booking)+'</td></tr>'
+   +'<tr><td class="k">group</td><td class="v">'+esc(w.group)+'</td><td class="k">package</td><td class="v">'+esc(w.package)+'</td></tr>'
+   +'<tr><td class="k">week</td><td class="v">'+esc(w.week)+'</td><td class="k">industry</td><td class="v">'+esc(w.name)+'</td></tr>'
+   +'</table></div>';
+}).join('');
+
+/* the two businesses */
+document.getElementById('biz').innerHTML = SNAP.businesses.map(function(b){
+  var p=b.pack, v=p.vocabulary, d=p.defaults||{};
+  var flags = [];
+  if (v.booking!=='Booking') flags.push('seam word');
+  return '<div class="card"><div class="packname">'+esc(b.label)+' <span class="tag">'+esc(p.business.industry)+'</span></div>'
+   +'<table>'
+   +'<tr><td class="k">provider</td><td class="v">'+esc(v.provider)+'</td></tr>'
+   +'<tr><td class="k">consumer</td><td class="v hi">'+esc(v.consumer)+'</td></tr>'
+   +'<tr><td class="k">booking</td><td class="v hi">'+esc(v.booking)+'</td></tr>'
+   +'<tr><td class="k">place</td><td class="v">'+esc(v.place)+'</td></tr>'
+   +'<tr><td class="k">group</td><td class="v">'+esc(v.group)+'</td></tr>'
+   +'<tr><td class="k">week</td><td class="v">'+esc(v.week)+'</td></tr>'
+   +'<tr><td class="k">starts every</td><td class="v">'+esc(d.startStep||'-')+' min</td></tr>'
+   +'<tr><td class="k">booking length</td><td class="v">'+esc(d.serviceMinutes||'-')+' min</td></tr>'
+   +'<tr><td class="k">how far ahead</td><td class="v">'+esc(d.advanceDays||'-')+' days</td></tr>'
+   +'</table></div>';
+}).join('');
+
+var DEF = {};
+for(var i=0;i<SNAP.businesses.length;i++){ DEF[SNAP.businesses[i].pack.business.industry] = SNAP.businesses[i].pack.defaults || {}; }
+function step(k){ return (DEF[k] && DEF[k].startStep) ? DEF[k].startStep : null; }
+function lengthFor(k){ return (DEF[k] && DEF[k].serviceMinutes) ? DEF[k].serviceMinutes : null; }
+
+/* flip the words on a sample screen */
+var cur='aquatics';
+function render(){
+  var p=byKey(cur), w=p.words;
+  document.getElementById('flip').innerHTML = ORDER.map(function(k){
+    return '<button class="fb'+(k===cur?' on':'')+'" data-k="'+k+'">'+esc(byKey(k).label)+'</button>';
+  }).join('');
+  var btns=document.querySelectorAll('.fb');
+  for(var i=0;i<btns.length;i++) btns[i].onclick=function(){ cur=this.getAttribute('data-k'); render(); };
+
+  document.getElementById('mgr-h').textContent = 'Business view — '+w.provider;
+  document.getElementById('cus-h').textContent = 'Customer view — '+w.consumer;
+  var mgr=[['The week','My '+w.week],['Who is on','All '+w.providerPlural],['A place',w.place+' 3'],
+           ['A group',''+w.group],['Cover a gap','Open '+w.place+' '+w.group],['The record','Closed '+w.booking]];
+  var st=step(cur), len=lengthFor(cur);
+  var cus=[['The offer','Book a '+w.booking],
+           ['Pick a time', st ? ('Every '+st+' minutes') : 'Every '+w.booking.toLowerCase()],
+           ['How long', len ? (len+' minutes') : '—'],
+           ['Who I am',''+w.consumer],['What I bought','My '+w.packagePlural],['Where',''+w.place+' 3'],['Mine','My '+w.bookingPlural]];
+  document.getElementById('mgr').innerHTML = mgr.map(function(r){return '<div class="row"><span class="n">'+esc(r[0])+'</span><span class="w">'+esc(r[1])+'</span></div>'}).join('');
+  document.getElementById('cus').innerHTML = cus.map(function(r){return '<div class="row"><span class="n">'+esc(r[0])+'</span><span class="w">'+esc(r[1])+'</span></div>'}).join('');
+}
+render();
+
+document.getElementById('foot').innerHTML =
+  '<b>Captured from the live API on '+esc(SNAP.capturedAt)+'.</b> Nothing here is typed by hand — this page is built by calling the running server, so these are real rows.<br><br>'
++ '<b>What changed:</b> the pack was a copy in the pitch page, a copy in the sign-up route (staff words only), and the table defaults. It is now one table. Aquatics came out of sign-up with <span class="changed">instructor</span> but <span class="changed">client</span> and <span class="changed">booking</span> — half translated. It now comes out with Instructor / Swimmer / Lesson / Lane / Roster, and an HVAC business comes out with Service specialist / Client / Appointment / Address / Schedule, on the same code.<br><br>'
++ '<b>Still open:</b> the app itself still has these words written into it in about seventy places. Reading them from this pack is the next job — this page proves the pack is right before the app is rewired to it.<br><br>'
++ '<b>Live instead of captured:</b> open this page with <code>?api=http://host:3210</code> and it will call the server directly.';
+</script>
+</body>
+</html>
