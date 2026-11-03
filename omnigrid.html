@@ -1144,7 +1144,11 @@ function hmMin(s){var m=/^(\d{1,2}):(\d{2})$/.exec(String(s||''));return m?(+m[1
 /* Override hierarchy: a service's own value is read FIRST; the business-wide dictionary (B().rules) is consulted only when that one field is null, blank or not a usable number. */
 function bkHas(v){return v!=null&&v!==''&&!(typeof v==='number'&&isNaN(v))&&!(typeof v==='string'&&isNaN(+v))}
 function bkPick(own,min,fallback){return bkHas(own)&&+own>=min?+own:fallback}
-function bkOf(sv){var b=sv&&sv.bk||{},R=B().rules;return{every:bkPick(b.every,1,R.startStep||10),lead:bkPick(b.lead,0,R.noticeHours),ahead:bkPick(b.ahead,1,R.advanceDays),perDay:b.perDay||0,perWeek:b.perWeek||0,days:(b.days&&b.days.length)?b.days:[0,1,2,3,4,5,6],early:b.early||'',late:b.late||'',hold:b.hold||120,minPerWeek:b.minPerWeek||0,allowBackToBackApproval:bkHas(b.allowBackToBackApproval)?!!b.allowBackToBackApproval:false}}
+/* The default break between two lessons in one session, in minutes - the A4 gap rule.
+   A service may override it with bk.minGap, and 0 there means NO gap is required.
+   Declared up here so bkOf() can never read it before it is assigned. */
+var SEQ_MIN_GAP=20;
+function bkOf(sv){var b=sv&&sv.bk||{},R=B().rules;return{every:bkPick(b.every,1,R.startStep||10),lead:bkPick(b.lead,0,R.noticeHours),ahead:bkPick(b.ahead,1,R.advanceDays),perDay:b.perDay||0,perWeek:b.perWeek||0,days:(b.days&&b.days.length)?b.days:[0,1,2,3,4,5,6],early:b.early||'',late:b.late||'',hold:b.hold||120,minPerWeek:b.minPerWeek||0,allowBackToBackApproval:bkHas(b.allowBackToBackApproval)?!!b.allowBackToBackApproval:false,minGap:bkPick(b.minGap,0,SEQ_MIN_GAP)}}
 /* start times for a service: its own interval is read off the clock (every 60 = on the hour); otherwise the business's grid */
 /* the grid a service is drawn on: its own Start Interval when set (10 to 60, in 10s), otherwise the business-wide interval, and only then the 10-minute floor */
 function gridOf(sv){var e=sv&&sv.bk&&sv.bk.every,R=B().rules;if(e>=10&&e<=240&&e%10===0)return{every:e,source:'offering'};var base=R.startStep||10,d=sv&&sv.min?durStep(sv.min,base):base;if(d!==base)return{every:d,source:'duration'};return{every:base,source:R.startStep?'business':'default'}}
@@ -1162,7 +1166,7 @@ function bkOk(date,t,sv){
   if(pd(date)>addD(T0,k.ahead))return false;
   return true;
 }
-function bkCustom(sv){var b=sv&&sv.bk;return !!(b&&(b.every||b.hold||(b.lead!=null&&b.lead!=='')||b.ahead||b.perDay||b.perWeek||b.minPerWeek||b.allowBackToBackApproval||(b.days&&b.days.length&&b.days.length<7)||b.early||b.late||b.startDate||b.endDate||b.cutoffDate||b.startTime))}
+function bkCustom(sv){var b=sv&&sv.bk;return !!(b&&(b.every||b.hold||(b.lead!=null&&b.lead!=='')||b.ahead||b.perDay||b.perWeek||b.minPerWeek||b.allowBackToBackApproval||bkHas(b.minGap)||(b.days&&b.days.length&&b.days.length<7)||b.early||b.late||b.startDate||b.endDate||b.cutoffDate||b.startTime))}
 function bkText(sv){
   if(!bkCustom(sv))return '';
   var b=sv.bk,o=[];
@@ -1171,6 +1175,9 @@ function bkText(sv){
   if(b.ahead)o.push('Up to '+b.ahead+' days ahead');
   if(b.perDay)o.push(b.perDay+' a day');
   if(b.perWeek)o.push(b.perWeek+' a week');
+  if(b.minPerWeek)o.push('at least '+b.minPerWeek+' a week');
+  if(bkHas(b.minGap))o.push(b.minGap?b.minGap+' min between lessons':'no gap needed between lessons');
+  if(b.allowBackToBackApproval)o.push('back-to-back needs approval');
   if(b.hold)o.push('Held '+holdText(b.hold)+' for payment');
   if(b.days&&b.days.length&&b.days.length<7){var d=b.days.slice().sort(function(x,y){return x-y}),run=d[d.length-1]-d[0]===d.length-1;o.push(run&&d.length>2?DAYS[d[0]]+' to '+DAYS[d[d.length-1]]:d.map(function(i){return DAYS[i]}).join(', '))}
   if(b.early&&b.late)o.push(b.early+' to '+b.late);else if(b.early)o.push('from '+b.early);else if(b.late)o.push('until '+b.late);
@@ -1189,6 +1196,7 @@ function bkClean(r){
   if(+r.perWeek){o.perWeek=Math.max(1,Math.min(200,Math.round(+r.perWeek)))}
   if(+r.minPerWeek){o.minPerWeek=Math.max(1,Math.min(200,Math.round(+r.minPerWeek)))}   /* a weekly MINIMUM: a soft nag at checkout, never a block */
   if(r.allowBackToBackApproval)o.allowBackToBackApproval=true   /* route an adjacent pair to the 12.4 waiting mechanism instead of a flat refusal */
+  if(bkHas(r.minGap))o.minGap=Math.max(0,Math.min(240,Math.round(+r.minGap)))   /* 0 is a real choice here: no gap required */
   if(+r.hold){o.hold=Math.max(HOLD_MIN,Math.min(HOLD_MAX,Math.round(+r.hold)))}
   if(r.days&&r.days.length&&r.days.length<7)o.days=r.days.filter(function(d,i,a){return d>=0&&d<=6&&a.indexOf(d)===i}).sort(function(x,y){return x-y});
   if(hmMin(r.early)>=0)o.early=r.early;
@@ -1362,7 +1370,7 @@ function bkFields(sv,mode){
     (mode!=='new'&&(b.early||b.late)?'<div class="bklegacy sm muted" role="note"><span>Daily hours still apply: '+esc(b.early&&b.late?b.early+' to '+b.late:b.early?'from '+b.early:'until '+b.late)+'</span><button class="btn sm" type="button" data-a="bkclearhours" data-id="'+sv.id+'">Clear</button></div>':'');
   /* the per-person limits and the payment hold live together in one "Limits for this service" panel, the hold right after the weekly limit */
   var gOn=mode!=='new'&&!!((ui.gOpen&&ui.gOpen[sv.id])||b.perDay||b.perWeek);   /* the caps show when switched on, or when a cap is already saved */
-  var guard='<fieldset class="bkguard" aria-label="Limits for this service"><legend>Limits for this service</legend><label class="row bkgtog" for="'+P+'gon"><input type="checkbox" id="'+P+'gon"'+(gOn?' checked':'')+' '+(mode==='new'?'data-c="bkgnew"':'data-c="bkguard" data-id="'+sv.id+'"')+'><span>Set limits just for this service?</span></label><div class="bkgrid bkcaps" id="'+P+'caps"'+(gOn?'':' hidden')+'>'+num('perDay','Most per person per day',b.perDay,1,50,'No limit')+num('perWeek','Most per person per week',b.perWeek,1,200,'No limit')+num('minPerWeek','Least per person per week',b.minPerWeek,1,200,'No minimum')+'</div><label class="row bkgtog" for="'+P+'b2b"><input type="checkbox" id="'+P+'b2b"'+(bkOf(sv).allowBackToBackApproval?' checked':'')+' '+D('b2b')+'><span>Let a manager approve two lessons back-to-back</span></label><p class="sm muted">Only matters when two times in one session sit under 20 minutes apart. Unticked, the second time is refused.</p><div class="bkgrid">'+num('hold','Hold a time for payment (minutes)',b.hold,HOLD_MIN,HOLD_MAX,'10 to 10080 min / Up to 7 Days')+'</div></fieldset>';
+  var guard='<fieldset class="bkguard" aria-label="Limits for this service"><legend>Limits for this service</legend><label class="row bkgtog" for="'+P+'gon"><input type="checkbox" id="'+P+'gon"'+(gOn?' checked':'')+' '+(mode==='new'?'data-c="bkgnew"':'data-c="bkguard" data-id="'+sv.id+'"')+'><span>Set limits just for this service?</span></label><div class="bkgrid bkcaps" id="'+P+'caps"'+(gOn?'':' hidden')+'>'+num('perDay','Most per person per day',b.perDay,1,50,'No limit')+num('perWeek','Most per person per week',b.perWeek,1,200,'No limit')+num('minPerWeek','Least per person per week',b.minPerWeek,1,200,'No minimum')+'</div>'+num('minGap','Least minutes between two lessons in one session',b.minGap,0,240,'Default 20')+'<label class="row bkgtog" for="'+P+'b2b"><input type="checkbox" id="'+P+'b2b"'+(bkOf(sv).allowBackToBackApproval?' checked':'')+' '+D('b2b')+'><span>Let a manager approve two lessons back-to-back</span></label><p class="sm muted">Unticked, a second lesson closer than the minutes above is refused outright. Ticked, it is held for a manager instead.</p><div class="bkgrid">'+num('hold','Hold a time for payment (minutes)',b.hold,HOLD_MIN,HOLD_MAX,'10 to 10080 min / Up to 7 Days')+'</div></fieldset>';
   var GRP=mode==='edit'&&sv&&typeof groupPlanner==='function'&&svcCap(sv)>1;   /* group offering: a fixed schedule replaces the open interval, earliest start and finish-by */
   if(GRP)return groupPlanner(sv,P,D)+'<div class="bkgrid">'+num('lead','Book at least (hours ahead)',b.lead,0,720,'Default '+R.noticeHours)+num('ahead','Book up to (days ahead)',b.ahead,1,365,'Default '+R.advanceDays)+'</div>'+guard+'<p class="sm muted">Leave a box empty to use the business-wide rule. Managers can still book any open time by hand.</p>';
   return '<div class="bkgrid">'+ev+num('lead','Book at least (hours ahead)',b.lead,0,720,'Default '+R.noticeHours)+num('ahead','Book up to (days ahead)',b.ahead,1,365,'Default '+R.advanceDays)+hours+days+'</div>'+guard+'<p class="sm muted">Leave a box empty to use the business-wide rule. Managers can still book any open time by hand.</p>';
@@ -1433,7 +1441,6 @@ function limitProblems(plan){
    Scope: until courses (B1) exist these are per-SERVICE settings on bkOf,
    inherited by every booking of that service.
 --------------------------------------------------------------------------- */
-var SEQ_MIN_GAP=20;   /* minutes between two lessons in one window. A constant until B4 turns it into a field */
 function blocking(plan){return plan.problems.filter(function(p){return p.kind!=='note'})}
 function notes(plan){return plan.problems.filter(function(p){return p.kind==='note'})}
 function sequenceProblems(plan){
@@ -1450,9 +1457,10 @@ function sequenceProblems(plan){
       if((r2.it.c.pid||ui.pid||'')!==pid)return;            /* a different person */
       mates.push({t:r2.it.c.t,len:r2.it.sv.min});
     });
+    var need=k.minGap;   /* resolved by bkOf(): this service's own gap, or the 20-minute default. 0 = no gap required */
     mates.forEach(function(m){
       var a=start<m.t?end:m.t+(m.len||sv.min),b=start<m.t?m.t:start,gap=b-a;
-      if(gap>=SEQ_MIN_GAP)return;                           /* a real break: fine */
+      if(gap>=need)return;                                  /* a real break: fine */
       var key='g|'+sv.id+'|'+win+'|'+pid;if(seen[key])return;seen[key]=1;
       if(gap<0){
         /* not a gap at all: the two RANGES overlap. cartToggle() only guards cart-against-cart,
@@ -1464,7 +1472,7 @@ function sequenceProblems(plan){
            to, so say so plainly rather than fake a pending state. */
         out.push({kind:'wait',text:sv.name+': two lessons this close need an instructor\'s approval, and approvals are not built yet'});
       }else{
-        out.push({kind:'rule',text:sv.name+' needs '+SEQ_MIN_GAP+' minutes between two lessons in the same session (these are '+gap+' apart)'});
+        out.push({kind:'rule',text:sv.name+' needs '+need+' minutes between two lessons in the same session (these are '+gap+' apart)'});
       }
     });
     if(k.minPerWeek){
@@ -4338,7 +4346,7 @@ document.addEventListener('change',function(e){
   else if(c==='svcbk'){
     if(!canRules())return;
     var sb=svcOf(el.dataset.id);if(!sb)return;
-    var cur=sb.bk||{},raw={every:cur.every,lead:cur.lead,ahead:cur.ahead,perDay:cur.perDay,perWeek:cur.perWeek,minPerWeek:cur.minPerWeek,allowBackToBackApproval:cur.allowBackToBackApproval,hold:cur.hold,early:cur.early,late:cur.late,startDate:cur.startDate,endDate:cur.endDate,cutoffDate:cur.cutoffDate,startTime:cur.startTime,days:(cur.days&&cur.days.length)?cur.days.slice():[0,1,2,3,4,5,6]},fb=el.dataset.field;
+    var cur=sb.bk||{},raw={every:cur.every,lead:cur.lead,ahead:cur.ahead,perDay:cur.perDay,perWeek:cur.perWeek,minPerWeek:cur.minPerWeek,allowBackToBackApproval:cur.allowBackToBackApproval,minGap:cur.minGap,hold:cur.hold,early:cur.early,late:cur.late,startDate:cur.startDate,endDate:cur.endDate,cutoffDate:cur.cutoffDate,startTime:cur.startTime,days:(cur.days&&cur.days.length)?cur.days.slice():[0,1,2,3,4,5,6]},fb=el.dataset.field;
     if(fb==='day'){var di=+el.dataset.d,ix=raw.days.indexOf(di);if(el.checked&&ix<0)raw.days.push(di);else if(!el.checked&&ix>=0)raw.days.splice(ix,1);if(!raw.days.length){toast('Pick at least one day');return}}
     else if(fb==='startDate'||fb==='endDate'||fb==='cutoffDate'||fb==='startTime'){var gv=String(el.value||'').trim(),gp=bkGroupProblem(sb,fb,gv,raw);if(gp){toast(gp+'. Nothing was changed');paint();return}raw[fb]=gv}   /* a refused date repaints so the box shows the saved value again */
     else if(fb==='b2b')raw.allowBackToBackApproval=!!el.checked;   /* a checkbox carries no usable .value: read .checked, and write the real property name, not the short data-field */
@@ -4504,7 +4512,7 @@ document.addEventListener('submit',function(e){
     B().services.push({id:B().id+'-sv'+uid(''),name:sn,min:parseMinutes(v('snv2')).min,cents:(function(){var q=parsePrice(v('sv3'));return q.ok?q.cents:0})(),active:true,single:single0});
     var nsv=B().services[B().services.length-1],kq=Math.round(+v('sk1')||0);
     if(canRules()){
-      var gv=function(id){var e=document.getElementById(id);return e?e.value:''},gc=function(id){var e=document.getElementById(id);return !!(e&&e.checked)},rawn={every:gv('bkn_every'),lead:gv('bkn_lead'),ahead:gv('bkn_ahead'),perDay:gv('bkn_perDay'),perWeek:gv('bkn_perWeek'),minPerWeek:gv('bkn_minPerWeek'),allowBackToBackApproval:gc('bkn_b2b'),hold:gv('bkn_hold'),startDate:wd0.startDate,endDate:wd0.endDate,days:[]};
+      var gv=function(id){var e=document.getElementById(id);return e?e.value:''},gc=function(id){var e=document.getElementById(id);return !!(e&&e.checked)},rawn={every:gv('bkn_every'),lead:gv('bkn_lead'),ahead:gv('bkn_ahead'),perDay:gv('bkn_perDay'),perWeek:gv('bkn_perWeek'),minPerWeek:gv('bkn_minPerWeek'),allowBackToBackApproval:gc('bkn_b2b'),minGap:gv('bkn_minGap'),hold:gv('bkn_hold'),startDate:wd0.startDate,endDate:wd0.endDate,days:[]};
       for(var di2=0;di2<7;di2++){var dx=document.getElementById('bkn_d'+di2);if(!dx||dx.checked!==false)rawn.days.push(di2)}
       if(rawn.days.length===0)rawn.days=[0,1,2,3,4,5,6];
       var bkn=bkClean(rawn);if(Object.keys(bkn).length)nsv.bk=bkn;
