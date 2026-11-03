@@ -1012,6 +1012,19 @@ function load(){
 function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}}
 
 /* ---------- scheduling rules (same as the backend) ---------- */
+/* The house booking rules, settable by name. There is deliberately NO screen for these -
+   the talk-to-text bar calls this directly. Validates and clamps, returns true when the
+   value was accepted. The CALLER saves, so this stays usable from anywhere. */
+function setBookingRule(field,v){
+  var R=B().rules,n=Math.round(+v);
+  if(!isFinite(n)||!field)return false;
+  if(field==='startStep'){if([10,20,30,60].indexOf(n)<0)return false;R.startStep=n}   /* the engine buckets the grid to these four */
+  else if(field==='advanceDays')R.advanceDays=Math.max(1,Math.min(365,n));
+  else if(field==='noticeHours'||field==='cancelHours')R[field]=Math.max(0,Math.min(168,n));
+  else if(field==='lateFeePct'||field==='noShowFeePct')R[field]=Math.max(0,Math.min(100,n));
+  else return false;
+  return true;
+}
 function isAvail(sid,d,b){return !!(B().avail[sid]&&B().avail[sid][d+'-'+b])}
 function isPref(sid,d,b){return !!(B().pref[sid]&&B().pref[sid][d+'-'+b])}
 function availRange(sid,d,s,e){for(var h=s;h<e;h++)if(!isAvail(sid,d,blockOf(h)))return false;return true}
@@ -4326,6 +4339,7 @@ document.addEventListener('change',function(e){
     else nn[k]=val;
   }
   else if(c==='loc'){var lo=locOf(el.dataset.id);lo.name=el.value.trim()||lo.name}
+  else if(c==='bguard'){if(!canRules()||!setBookingRule(el.dataset.field,el.value))return}   /* no screen drives this yet; the talk-to-text bar will */
   else return;
   save();if(!noPaint)paint();   /* a date field keeps its caret: nothing is redrawn under the person's typing */
 });
