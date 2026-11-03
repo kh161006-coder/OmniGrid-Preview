@@ -48,11 +48,14 @@ code{background:#1b221f;border:1px solid #26302b;border-radius:5px;padding:1px 5
   half-translated. There is now one table. A business names its industry, the database decides its whole
   vocabulary, and a second trade on the same code speaks its own language.</p>
 
-  <h2>The catalogue → <code>industry_packs</code></h2>
+  <h2>The public door → what a visitor can see</h2>
+  <p class="sub" style="margin-bottom:12px">This is the whole of it. A visitor may <b>choose</b> a trade — the catalogue is not
+  a spec sheet to browse. The vocabulary arrives after they have chosen, inside their own account.</p>
   <div id="cat"></div>
 
-  <h2>Two real businesses, same code</h2>
-  <p class="sub" style="margin-bottom:12px">Both created through the live sign-up endpoint, then read back from the database.</p>
+  <h2>Four trades, same code</h2>
+  <p class="sub" style="margin-bottom:12px">Each created through the live sign-up endpoint, then read back from its own account.
+  <b>We can serve</b> lists the pages that trade actually gets today; <b>on the roadmap</b> is what it will get but cannot yet.</p>
   <div class="grid two" id="biz"></div>
 
   <h2>What the screen says</h2>
@@ -66,27 +69,23 @@ code{background:#1b221f;border:1px solid #26302b;border-radius:5px;padding:1px 5
 </div>
 
 <script>
-var SNAP = {"capturedAt": "03 Nov 2026 at 03:58", "packs": [{"key": "generic", "label": "Universal scheduling (generic)", "words": {"name": "Universal service", "week": "Schedule", "group": "Class", "place": "Location", "booking": "Booking", "package": "Package", "consumer": "Consumer", "provider": "Provider", "groupPlural": "Classes", "placePlural": "Locations", "bookingPlural": "Bookings", "packagePlural": "Packages", "consumerPlural": "Consumers", "providerPlural": "Providers"}, "sort_order": 10}, {"key": "aquatics", "label": "Aquatics and swim coaching networks", "words": {"name": "Aquatics and swim school", "week": "Roster", "group": "Class", "place": "Lane", "booking": "Lesson", "package": "Pass", "consumer": "Swimmer", "provider": "Instructor", "groupPlural": "Classes", "placePlural": "Lanes", "bookingPlural": "Lessons", "packagePlural": "Passes", "consumerPlural": "Swimmers", "providerPlural": "Instructors"}, "sort_order": 20}, {"key": "fleet", "label": "Fleet logistics and field crews", "words": {"name": "Fleet logistics", "week": "Route", "group": "Crew", "place": "Bay", "booking": "Service visit", "package": "Service plan", "consumer": "Service truck", "provider": "Technician", "groupPlural": "Crews", "placePlural": "Bays", "bookingPlural": "Service visits", "packagePlural": "Service plans", "consumerPlural": "Service trucks", "providerPlural": "Technicians"}, "sort_order": 30}, {"key": "home_services", "label": "Home services and HVAC systems", "words": {"name": "Home services and HVAC", "week": "Schedule", "group": "Team", "place": "Address", "booking": "Appointment", "package": "Maintenance plan", "consumer": "Client", "provider": "Service specialist", "groupPlural": "Teams", "placePlural": "Addresses", "bookingPlural": "Appointments", "packagePlural": "Maintenance plans", "consumerPlural": "Clients", "providerPlural": "Service specialists"}, "sort_order": 40}], "businesses": [{"label": "Blue Lagoon Swim", "pack": {"business": {"id": "0b42fd36-5f54-4d18-9115-c20bbc93e8f9", "slug": "blue-lagoon2", "name": "Blue Lagoon Swim", "industry": "aquatics", "timezone": "America/New_York", "pack_key": "aquatics"}, "vocabulary": {"name": "Aquatics and swim school", "provider": "Instructor", "providerPlural": "Instructors", "consumer": "Swimmer", "booking": "Lesson", "place": "Lane", "placePlural": "Lanes", "group": "Class", "groupPlural": "Classes", "week": "Roster", "package": "Pass", "packagePlural": "Passes"}}}, {"label": "Northside HVAC", "pack": {"business": {"id": "95099b0c-ce02-43ed-ac81-5ae632eff1a7", "slug": "northside-hvac", "name": "Northside HVAC", "industry": "home_services", "timezone": "America/New_York", "pack_key": "home_services"}, "vocabulary": {"name": "Home services and HVAC", "provider": "Service specialist", "providerPlural": "Service specialists", "consumer": "Client", "booking": "Appointment", "place": "Address", "placePlural": "Addresses", "group": "Team", "groupPlural": "Teams", "week": "Schedule", "package": "Maintenance plan", "packagePlural": "Maintenance plans"}}}]};
-var ORDER = ['generic','aquatics','fleet','home_services'];
+var SNAP = {"capturedAt": "03 Nov 2026 at 12:37", "choices": [{"key": "generic", "label": "Universal scheduling (generic)", "blurb": "Anything that books an appointment", "sort_order": 10}, {"key": "aquatics", "label": "Aquatics and swim coaching networks", "blurb": "Swim schools, swim lessons and coaching", "sort_order": 20}, {"key": "fleet", "label": "Fleet logistics and field crews", "blurb": "Trucks, bays and field crews", "sort_order": 30}, {"key": "home_services", "label": "Home services and HVAC systems", "blurb": "HVAC, plumbing, electrical and home visits", "sort_order": 40}], "businesses": [{"label": "Blue Lagoon Swim", "industry": "aquatics", "words": {"name": "Aquatics and swim school", "provider": "Instructor", "providerPlural": "Instructors", "consumer": "Swimmer", "booking": "Lesson", "place": "Lane", "placePlural": "Lanes", "group": "Class", "groupPlural": "Classes", "week": "Roster", "package": "Pass", "packagePlural": "Passes"}, "pages": {"show": ["roster", "classes", "booking"]}, "planned": {"show": ["lanes", "waitlist"]}}, {"label": "Northside HVAC", "industry": "home_services", "words": {"name": "Home services and HVAC", "provider": "Service specialist", "providerPlural": "Service specialists", "consumer": "Client", "booking": "Appointment", "place": "Address", "placePlural": "Addresses", "group": "Team", "groupPlural": "Teams", "week": "Schedule", "package": "Maintenance plan", "packagePlural": "Maintenance plans"}, "pages": {}, "planned": {}}, {"label": "Ridge Fleet Services", "industry": "fleet", "words": {"name": "Fleet logistics", "provider": "Technician", "providerPlural": "Technicians", "consumer": "Service truck", "booking": "Service visit", "place": "Bay", "placePlural": "Bays", "group": "Crew", "groupPlural": "Crews", "week": "Route", "package": "Service plan", "packagePlural": "Service plans"}, "pages": {}, "planned": {}}, {"label": "Harbor General Co", "industry": "generic", "words": {"name": "Universal service", "provider": "Provider", "providerPlural": "Providers", "consumer": "Consumer", "booking": "Booking", "place": "Location", "placePlural": "Locations", "group": "Class", "groupPlural": "Classes", "week": "Schedule", "package": "Package", "packagePlural": "Packages"}, "pages": {}, "planned": {}}]};
 function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]}) }
-function byKey(k){ for(var i=0;i<SNAP.packs.length;i++) if(SNAP.packs[i].key===k) return SNAP.packs[i]; return null }
+function byKey(k){ for(var i=0;i<SNAP.businesses.length;i++) if(SNAP.businesses[i].industry===k) return SNAP.businesses[i]; return null }
+var ORDER = SNAP.businesses.map(function(b){ return b.industry });
 
-/* the catalogue */
-document.getElementById('cat').innerHTML = SNAP.packs.map(function(p){
-  var w=p.words;
-  return '<div class="card"><div class="packname">'+esc(p.label)+' <span class="tag">'+esc(p.key)+'</span></div>'
-   +'<table><tr><th>On the business side</th><th></th><th>On the customer side</th><th></th></tr>'
-   +'<tr><td class="k">provider</td><td class="v">'+esc(w.provider)+'</td><td class="k">consumer</td><td class="v hi">'+esc(w.consumer)+'</td></tr>'
-   +'<tr><td class="k">place</td><td class="v">'+esc(w.place)+'</td><td class="k">booking (the seam)</td><td class="v hi">'+esc(w.booking)+'</td></tr>'
-   +'<tr><td class="k">group</td><td class="v">'+esc(w.group)+'</td><td class="k">package</td><td class="v">'+esc(w.package)+'</td></tr>'
-   +'<tr><td class="k">week</td><td class="v">'+esc(w.week)+'</td><td class="k">industry</td><td class="v">'+esc(w.name)+'</td></tr>'
-   +'</table></div>';
+/* THE PUBLIC DOOR - this is the whole of what a visitor can see. No words, no rules, no page mix.
+   Just enough to choose. The vocabulary arrives after they have chosen, in their own account. */
+document.getElementById('cat').innerHTML = SNAP.choices.map(function(c){
+  return '<div class="card"><div class="packname">'+esc(c.label)+' <span class="tag">'+esc(c.key)+'</span></div>'
+   +'<p class="sub" style="margin-top:6px">'+esc(c.blurb)+'</p></div>';
 }).join('');
 
-/* the two businesses */
+/* the four trades, each read back from its own account */
 document.getElementById('biz').innerHTML = SNAP.businesses.map(function(b){
-  var p=b.pack, v=p.vocabulary;
-  return '<div class="card"><div class="packname">'+esc(b.label)+' <span class="tag">'+esc(p.business.industry)+'</span></div>'
+  var v=b.words;
+  var live=(b.pages.show||[]), soon=(b.planned.show||[]);
+  return '<div class="card"><div class="packname">'+esc(b.label)+' <span class="tag">'+esc(b.industry)+'</span></div>'
    +'<table>'
    +'<tr><td class="k">provider</td><td class="v">'+esc(v.provider)+'</td></tr>'
    +'<tr><td class="k">consumer</td><td class="v hi">'+esc(v.consumer)+'</td></tr>'
@@ -94,6 +93,8 @@ document.getElementById('biz').innerHTML = SNAP.businesses.map(function(b){
    +'<tr><td class="k">place</td><td class="v">'+esc(v.place)+'</td></tr>'
    +'<tr><td class="k">group</td><td class="v">'+esc(v.group)+'</td></tr>'
    +'<tr><td class="k">week</td><td class="v">'+esc(v.week)+'</td></tr>'
+   +'<tr><td class="k">we can serve</td><td class="v">'+esc(live.length?live.join(', '):'no special pages yet')+'</td></tr>'
+   +(soon.length?'<tr><td class="k">on the roadmap</td><td class="v dim">'+esc(soon.join(', '))+'</td></tr>':'')
    +'</table></div>';
 }).join('');
 
@@ -121,8 +122,9 @@ render();
 document.getElementById('foot').innerHTML =
   '<b>Captured from the live API on '+esc(SNAP.capturedAt)+'.</b> Nothing here is typed by hand — this page is built by calling the running server, so these are real rows.<br><br>'
 + '<b>What changed:</b> the pack was a copy in the pitch page, a copy in the sign-up route (staff words only), and the table defaults. It is now one table. Aquatics came out of sign-up with <span class="changed">instructor</span> but <span class="changed">client</span> and <span class="changed">booking</span> — half translated. It now comes out with Instructor / Swimmer / Lesson / Lane / Roster, and an HVAC business comes out with Service specialist / Client / Appointment / Address / Schedule, on the same code.<br><br>'
-+ '<b>What is deliberately NOT on this page.</b> Each pack row also carries the trade’s defaults (lesson length, start grid), its rules (instructor-to-child ratio, daily and weekly caps), its page mix, and the phrases its staff say. Those are product internals, not marketing, and they are not published: the public endpoint serves the words only, and the rest needs a login. This page carries the words and nothing else.<br><br>'
-+ '<b>Where the words have to be copied.</b> The app must work with no server, so it carries its own generated copy of the words — produced by a build script that reads this same endpoint, never typed by hand. The database stays the single source of truth; the file copy is an artifact of it.<br><br>'
++ '<b>What is deliberately NOT on this page.</b> Each pack row also carries the trade’s defaults (lesson length, start grid), its rules (instructor-to-child ratio, daily and weekly caps), and the phrases its staff say. Those are product internals, not marketing, and they are not published: the public door serves the names of the trades and nothing else, and the rest needs a login.<br><br>'
++ '<b>A promise we cannot keep is worse than no promise.</b> Aquatics used to promise <span class="changed">lanes</span> and <span class="changed">waitlist</span>, and the app can draw neither. Both moved to the roadmap, so the trade now gets only pages that exist. <code>check-packs.mjs</code> fails the build if any pack promises a page the app cannot draw.<br><br>'
++ '<b>Where the words have to be copied.</b> The app must work with no server, so it carries its own generated copy of the words — produced by a build script that reads the same endpoint, never typed by hand. The database stays the single source of truth; the file copy is an artifact of it.<br><br>'
 + '<b>Live instead of captured:</b> open this page with <code>?api=http://host:3210</code> and it will call the server directly.';
 </script>
 </body>
