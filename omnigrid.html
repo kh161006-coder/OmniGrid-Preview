@@ -3569,8 +3569,8 @@ function bizDefaultsBlock(){
     '<div class="row sp"><div class="svclbl"><b>Business-wide defaults</b><span class="sm muted">These baseline numbers apply broadly across the platform, but setting specific rules inside an individual appointment drawer below will completely bypass these defaults.</span></div><button class="btn sm" type="button" data-a="defacc" aria-expanded="'+open+'">'+(open?'Hide':'Show')+'</button></div>';
   if(!open)return head+'</div>';
   return head+'<div class="fgrid">'+
-    '<label class="field bkdeflead" for="rstartStep">Fallback Business Defaults (Only used if service rules are left blank)<select id="rstartStep" data-c="rule" data-field="startStep">'+[10,20,30,60].map(function(m){return '<option value="'+m+'"'+(m===R.startStep?' selected':'')+'>'+m+' minutes</option>'}).join('')+'</select></label>'+
-    [['advanceDays','Book up to (days ahead)',1,180],['noticeHours','Minimum notice (hours)',0,72],['cancelHours','Free cancellation until (hours before)',0,168],['lateFeePct','Late-cancel fee (% of price)',0,100],['noShowFeePct','No-show fee (% of price)',0,100]].map(function(f){return '<label class="field" for="r'+f[0]+'">'+f[1]+'<input id="r'+f[0]+'" type="number" min="'+f[2]+'" max="'+f[3]+'" value="'+R[f[0]]+'" data-c="rule" data-field="'+f[0]+'"></label>'}).join('')+'</div>'+
+    '<label class="field bkdeflead" for="rstartStep">Business-wide defaults — the start grid (used only where a service leaves its own rule blank)<select id="rstartStep" data-c="rule" data-field="startStep">'+[10,20,30,60].map(function(m){return '<option value="'+m+'"'+(m===R.startStep?' selected':'')+'>'+m+' minutes</option>'}).join('')+'</select></label>'+
+    [['advanceDays','Book up to (days ahead)',1,365],['noticeHours','Minimum notice (hours)',0,168],['cancelHours','Free cancellation until (hours before)',0,168],['lateFeePct','Late-cancel fee (% of price)',0,100],['noShowFeePct','No-show fee (% of price)',0,100]].map(function(f){return '<label class="field" for="r'+f[0]+'">'+f[1]+'<input id="r'+f[0]+'" type="number" min="'+f[2]+'" max="'+f[3]+'" value="'+R[f[0]]+'" data-c="rule" data-field="'+f[0]+'"></label>'}).join('')+'</div>'+
     '<p class="sm muted">Slots come from scheduled shifts. '+esc(L.staffPlural)+' and managers can hold back 30-minute blocks or turn a whole shift off for online booking.</p></div>';
 }
 /* services that are switched off (or flagged as system-generated templates) leave the main grid and wait in one collapsed accordion at the very bottom of the page */
@@ -4366,7 +4366,7 @@ document.addEventListener('change',function(e){
       else if(pm.min===sx.min||sx.more.some(function(q){return q!==mr&&q.min===pm.min}))toast(pm.min+' minutes is already listed');
       else{mr.min=pm.min;submitOffering(sx)}}
   }
-  else if(c==='rule'){var R=B().rules,fld=el.dataset.field,lim={advanceDays:[1,180],noticeHours:[0,72],cancelHours:[0,168],startStep:[10,60],lateFeePct:[0,100],noShowFeePct:[0,100]}[fld];if(lim)R[fld]=Math.max(lim[0],Math.min(lim[1],Math.round(+el.value)||0))}
+  else if(c==='rule'){setBookingRule(el.dataset.field,Math.round(+el.value)||0);}   /* one authority: setBookingRule owns the limits. This branch used to carry its OWN table - advanceDays 1-180, noticeHours 0-72, startStep 10-60 - which disagreed with both the panel's input caps and setBookingRule itself, so a value the command bar was allowed to set got silently clamped back the moment anyone touched the box. */
   else if(c==='svcLen'||c==='newLen'){
     var raw=+el.value,m=Math.max(10,Math.min(240,Math.round(raw/10)*10||10)),svx=c==='svcLen'?svcOf(el.dataset.id):null,sid=c==='svcLen'?el.dataset.id:'v2';
     if(String(el.value).trim()===''||raw<=0){toast('Enter a length of 10 minutes or more'+(svx?'. The length was not changed':''));if(svx)return;m=30}
