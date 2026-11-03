@@ -1144,7 +1144,7 @@ function hmMin(s){var m=/^(\d{1,2}):(\d{2})$/.exec(String(s||''));return m?(+m[1
 /* Override hierarchy: a service's own value is read FIRST; the business-wide dictionary (B().rules) is consulted only when that one field is null, blank or not a usable number. */
 function bkHas(v){return v!=null&&v!==''&&!(typeof v==='number'&&isNaN(v))&&!(typeof v==='string'&&isNaN(+v))}
 function bkPick(own,min,fallback){return bkHas(own)&&+own>=min?+own:fallback}
-function bkOf(sv){var b=sv&&sv.bk||{},R=B().rules;return{every:bkPick(b.every,1,R.startStep||10),lead:bkPick(b.lead,0,R.noticeHours),ahead:bkPick(b.ahead,1,R.advanceDays),perDay:b.perDay||0,perWeek:b.perWeek||0,days:(b.days&&b.days.length)?b.days:[0,1,2,3,4,5,6],early:b.early||'',late:b.late||'',hold:b.hold||120,minPerWeek:b.minPerWeek||0,allowBackToBackApproval:!!b.allowBackToBackApproval}}
+function bkOf(sv){var b=sv&&sv.bk||{},R=B().rules;return{every:bkPick(b.every,1,R.startStep||10),lead:bkPick(b.lead,0,R.noticeHours),ahead:bkPick(b.ahead,1,R.advanceDays),perDay:b.perDay||0,perWeek:b.perWeek||0,days:(b.days&&b.days.length)?b.days:[0,1,2,3,4,5,6],early:b.early||'',late:b.late||'',hold:b.hold||120,minPerWeek:b.minPerWeek||0,allowBackToBackApproval:bkHas(b.allowBackToBackApproval)?!!b.allowBackToBackApproval:false}}
 /* start times for a service: its own interval is read off the clock (every 60 = on the hour); otherwise the business's grid */
 /* the grid a service is drawn on: its own Start Interval when set (10 to 60, in 10s), otherwise the business-wide interval, and only then the 10-minute floor */
 function gridOf(sv){var e=sv&&sv.bk&&sv.bk.every,R=B().rules;if(e>=10&&e<=240&&e%10===0)return{every:e,source:'offering'};var base=R.startStep||10,d=sv&&sv.min?durStep(sv.min,base):base;if(d!==base)return{every:d,source:'duration'};return{every:base,source:R.startStep?'business':'default'}}
@@ -1162,7 +1162,7 @@ function bkOk(date,t,sv){
   if(pd(date)>addD(T0,k.ahead))return false;
   return true;
 }
-function bkCustom(sv){var b=sv&&sv.bk;return !!(b&&(b.every||b.hold||(b.lead!=null&&b.lead!=='')||b.ahead||b.perDay||b.perWeek||(b.days&&b.days.length&&b.days.length<7)||b.early||b.late||b.startDate||b.endDate||b.cutoffDate||b.startTime))}
+function bkCustom(sv){var b=sv&&sv.bk;return !!(b&&(b.every||b.hold||(b.lead!=null&&b.lead!=='')||b.ahead||b.perDay||b.perWeek||b.minPerWeek||b.allowBackToBackApproval||(b.days&&b.days.length&&b.days.length<7)||b.early||b.late||b.startDate||b.endDate||b.cutoffDate||b.startTime))}
 function bkText(sv){
   if(!bkCustom(sv))return '';
   var b=sv.bk,o=[];
@@ -1362,7 +1362,7 @@ function bkFields(sv,mode){
     (mode!=='new'&&(b.early||b.late)?'<div class="bklegacy sm muted" role="note"><span>Daily hours still apply: '+esc(b.early&&b.late?b.early+' to '+b.late:b.early?'from '+b.early:'until '+b.late)+'</span><button class="btn sm" type="button" data-a="bkclearhours" data-id="'+sv.id+'">Clear</button></div>':'');
   /* the per-person limits and the payment hold live together in one "Limits for this service" panel, the hold right after the weekly limit */
   var gOn=mode!=='new'&&!!((ui.gOpen&&ui.gOpen[sv.id])||b.perDay||b.perWeek);   /* the caps show when switched on, or when a cap is already saved */
-  var guard='<fieldset class="bkguard" aria-label="Limits for this service"><legend>Limits for this service</legend><label class="row bkgtog" for="'+P+'gon"><input type="checkbox" id="'+P+'gon"'+(gOn?' checked':'')+' '+(mode==='new'?'data-c="bkgnew"':'data-c="bkguard" data-id="'+sv.id+'"')+'><span>Set limits just for this service?</span></label><div class="bkgrid bkcaps" id="'+P+'caps"'+(gOn?'':' hidden')+'>'+num('perDay','Most per person per day',b.perDay,1,50,'No limit')+num('perWeek','Most per person per week',b.perWeek,1,200,'No limit')+'</div><div class="bkgrid">'+num('hold','Hold a time for payment (minutes)',b.hold,HOLD_MIN,HOLD_MAX,'10 to 10080 min / Up to 7 Days')+'</div></fieldset>';
+  var guard='<fieldset class="bkguard" aria-label="Limits for this service"><legend>Limits for this service</legend><label class="row bkgtog" for="'+P+'gon"><input type="checkbox" id="'+P+'gon"'+(gOn?' checked':'')+' '+(mode==='new'?'data-c="bkgnew"':'data-c="bkguard" data-id="'+sv.id+'"')+'><span>Set limits just for this service?</span></label><div class="bkgrid bkcaps" id="'+P+'caps"'+(gOn?'':' hidden')+'>'+num('perDay','Most per person per day',b.perDay,1,50,'No limit')+num('perWeek','Most per person per week',b.perWeek,1,200,'No limit')+num('minPerWeek','Least per person per week',b.minPerWeek,1,200,'No minimum')+'</div><label class="row bkgtog" for="'+P+'b2b"><input type="checkbox" id="'+P+'b2b"'+(bkOf(sv).allowBackToBackApproval?' checked':'')+' '+D('b2b')+'><span>Let a manager approve two lessons back-to-back</span></label><p class="sm muted">Only matters when two times in one session sit under 20 minutes apart. Unticked, the second time is refused.</p><div class="bkgrid">'+num('hold','Hold a time for payment (minutes)',b.hold,HOLD_MIN,HOLD_MAX,'10 to 10080 min / Up to 7 Days')+'</div></fieldset>';
   var GRP=mode==='edit'&&sv&&typeof groupPlanner==='function'&&svcCap(sv)>1;   /* group offering: a fixed schedule replaces the open interval, earliest start and finish-by */
   if(GRP)return groupPlanner(sv,P,D)+'<div class="bkgrid">'+num('lead','Book at least (hours ahead)',b.lead,0,720,'Default '+R.noticeHours)+num('ahead','Book up to (days ahead)',b.ahead,1,365,'Default '+R.advanceDays)+'</div>'+guard+'<p class="sm muted">Leave a box empty to use the business-wide rule. Managers can still book any open time by hand.</p>';
   return '<div class="bkgrid">'+ev+num('lead','Book at least (hours ahead)',b.lead,0,720,'Default '+R.noticeHours)+num('ahead','Book up to (days ahead)',b.ahead,1,365,'Default '+R.advanceDays)+hours+days+'</div>'+guard+'<p class="sm muted">Leave a box empty to use the business-wide rule. Managers can still book any open time by hand.</p>';
@@ -1376,7 +1376,7 @@ function bkSeqNew(){
 }
 function bkGuardNew(on){
   var box=document.getElementById('bkn_caps');if(!box)return;box.hidden=!on;
-  if(!on){['bkn_perDay','bkn_perWeek'].forEach(function(id){var i=document.getElementById(id);if(i)i.value=''})}   /* switching it off means no limit */
+  if(!on){['bkn_perDay','bkn_perWeek','bkn_minPerWeek'].forEach(function(id){var i=document.getElementById(id);if(i)i.value=''})}   /* switching it off means no limit */
 }
 /* the title of the local rules, with a badge once this offering sets anything of its own (same line, fixed height, so nothing shifts when it appears) */
 function bkTitle(sv,txt){return '<span class="bktitle"><b>'+txt+'</b>'+(sv&&bkCustom(sv)?'<span class="bkbadge" role="status">🟢 Individual offering overrides business defaults</span>':'')+'</span>'}
@@ -4338,9 +4338,10 @@ document.addEventListener('change',function(e){
   else if(c==='svcbk'){
     if(!canRules())return;
     var sb=svcOf(el.dataset.id);if(!sb)return;
-    var cur=sb.bk||{},raw={every:cur.every,lead:cur.lead,ahead:cur.ahead,perDay:cur.perDay,perWeek:cur.perWeek,hold:cur.hold,early:cur.early,late:cur.late,startDate:cur.startDate,endDate:cur.endDate,cutoffDate:cur.cutoffDate,startTime:cur.startTime,days:(cur.days&&cur.days.length)?cur.days.slice():[0,1,2,3,4,5,6]},fb=el.dataset.field;
+    var cur=sb.bk||{},raw={every:cur.every,lead:cur.lead,ahead:cur.ahead,perDay:cur.perDay,perWeek:cur.perWeek,minPerWeek:cur.minPerWeek,allowBackToBackApproval:cur.allowBackToBackApproval,hold:cur.hold,early:cur.early,late:cur.late,startDate:cur.startDate,endDate:cur.endDate,cutoffDate:cur.cutoffDate,startTime:cur.startTime,days:(cur.days&&cur.days.length)?cur.days.slice():[0,1,2,3,4,5,6]},fb=el.dataset.field;
     if(fb==='day'){var di=+el.dataset.d,ix=raw.days.indexOf(di);if(el.checked&&ix<0)raw.days.push(di);else if(!el.checked&&ix>=0)raw.days.splice(ix,1);if(!raw.days.length){toast('Pick at least one day');return}}
     else if(fb==='startDate'||fb==='endDate'||fb==='cutoffDate'||fb==='startTime'){var gv=String(el.value||'').trim(),gp=bkGroupProblem(sb,fb,gv,raw);if(gp){toast(gp+'. Nothing was changed');paint();return}raw[fb]=gv}   /* a refused date repaints so the box shows the saved value again */
+    else if(fb==='b2b')raw.allowBackToBackApproval=!!el.checked;   /* a checkbox carries no usable .value: read .checked, and write the real property name, not the short data-field */
     else raw[fb]=el.value;
     var nb=bkClean(raw);
     if(fb==='late'&&el.value&&hmMin(el.value)>=0&&!nb.late&&nb.early)toast('Finish time has to be after the earliest start');
@@ -4369,7 +4370,7 @@ document.addEventListener('change',function(e){
   else if(c==='bkguard'){
     if(!canRules())return;var sg=svcOf(el.dataset.id);if(!sg)return;ui.gOpen=ui.gOpen||{};
     if(el.checked)ui.gOpen[sg.id]=true;
-    else{ui.gOpen[sg.id]=false;var cg={};Object.keys(sg.bk||{}).forEach(function(k){cg[k]=sg.bk[k]});if(cg.perDay||cg.perWeek){delete cg.perDay;delete cg.perWeek;sg.bk=bkClean(cg);submitOffering(sg);toast('Per-person limits cleared')}}
+    else{ui.gOpen[sg.id]=false;var cg={};Object.keys(sg.bk||{}).forEach(function(k){cg[k]=sg.bk[k]});if(cg.perDay||cg.perWeek||cg.minPerWeek){delete cg.perDay;delete cg.perWeek;delete cg.minPerWeek;sg.bk=bkClean(cg);submitOffering(sg);toast('Per-person limits cleared')}}   /* the weekly MINIMUM goes with the caps: leaving it set but hidden would be a rule with no control */
   }
   else if(c==='newEvery'){ui.everyTouched=true;ui.newEvery=el.value===''?null:+el.value;return}   /* a manual pick sticks */
   else if(c==='addC'){var r0=addRange(ds(wdates()[ui.day]),ui.loc);if(r0){r0.cls=el.value}}
@@ -4503,7 +4504,7 @@ document.addEventListener('submit',function(e){
     B().services.push({id:B().id+'-sv'+uid(''),name:sn,min:parseMinutes(v('snv2')).min,cents:(function(){var q=parsePrice(v('sv3'));return q.ok?q.cents:0})(),active:true,single:single0});
     var nsv=B().services[B().services.length-1],kq=Math.round(+v('sk1')||0);
     if(canRules()){
-      var gv=function(id){var e=document.getElementById(id);return e?e.value:''},rawn={every:gv('bkn_every'),lead:gv('bkn_lead'),ahead:gv('bkn_ahead'),perDay:gv('bkn_perDay'),perWeek:gv('bkn_perWeek'),hold:gv('bkn_hold'),startDate:wd0.startDate,endDate:wd0.endDate,days:[]};
+      var gv=function(id){var e=document.getElementById(id);return e?e.value:''},gc=function(id){var e=document.getElementById(id);return !!(e&&e.checked)},rawn={every:gv('bkn_every'),lead:gv('bkn_lead'),ahead:gv('bkn_ahead'),perDay:gv('bkn_perDay'),perWeek:gv('bkn_perWeek'),minPerWeek:gv('bkn_minPerWeek'),allowBackToBackApproval:gc('bkn_b2b'),hold:gv('bkn_hold'),startDate:wd0.startDate,endDate:wd0.endDate,days:[]};
       for(var di2=0;di2<7;di2++){var dx=document.getElementById('bkn_d'+di2);if(!dx||dx.checked!==false)rawn.days.push(di2)}
       if(rawn.days.length===0)rawn.days=[0,1,2,3,4,5,6];
       var bkn=bkClean(rawn);if(Object.keys(bkn).length)nsv.bk=bkn;
