@@ -1507,17 +1507,21 @@ var WEEKPAGES={shifts:1,roster:1,schedule:1,overview:1};
      state_2  Set up your business (the six-field registration; creates a business and signs its owner in)
      state_3  Workspace Hub   (one login for every role: business code, email, password)
    The lane and the industry wording are remembered in two cookies; if the browser refuses cookies they are simply remembered for this visit.
-   Chameleon rule: code says provider / consumer. Industry words live ONLY in TAXONOMY below and are applied when text is drawn.
+   Chameleon rule: code says provider / consumer. Industry words live ONLY in PACKS above.
+   TAXONOMY below is a VIEW of PACKS - never edit a word there.
    ===================================================================== */
 var LANES=['state_1','state_2','state_3'];
 var LANE_NAMES={state_1:'Home',state_2:'Set up your business',state_3:'Workspace Hub'};
 var COOKIE_LANE='omnigrid_public_state',COOKIE_VERTICAL='omnigrid_pitch_industry';
-var TAXONOMY={
-  generic:{label:'Universal scheduling (generic)',name:'Universal service',provider:'Provider',providers:'Providers',consumer:'Consumer',consumers:'Consumers',booking:'Booking'},
-  aquatics:{label:'Aquatics and swim coaching networks',name:'Aquatics and swim school',provider:'Instructor',providers:'Instructors',consumer:'Swimmer',consumers:'Swimmers',booking:'Lesson'},
-  fleet:{label:'Fleet logistics and field crews',name:'Fleet logistics',provider:'Technician',providers:'Technicians',consumer:'Service truck',consumers:'Service trucks',booking:'Service visit'},
-  home_services:{label:'Home services and HVAC systems',name:'Home services and HVAC',provider:'Service specialist',providers:'Service specialists',consumer:'Client',consumers:'Clients',booking:'Appointment'}
-};
+/* A VIEW of PACKS, not a second copy. PACKS (line 907) is generated from the database and
+   is the only place a word is written down. This keeps the short field names the pitch
+   picker, the cookie and the layout text already use, so no call site has to change. */
+var TAXONOMY={};
+Object.keys(PACKS).forEach(function(k){
+  var p=PACKS[k],w=p.words||{};
+  TAXONOMY[k]={label:p.label,name:w.name,provider:w.provider,providers:w.providerPlural,
+               consumer:w.consumer,consumers:w.consumerPlural,booking:w.booking};
+});
 var MONTHN=['January','February','March','April','May','June','July','August','September','October','November','December'];
 function cleanVertical(v){return Object.prototype.hasOwnProperty.call(TAXONOMY,v)?v:'generic'}
 function taxonomyOf(v){return TAXONOMY[cleanVertical(v)]}
