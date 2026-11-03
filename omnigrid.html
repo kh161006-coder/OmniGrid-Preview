@@ -318,6 +318,7 @@ input[type=email],input[type=password],input[type=number],input[type=date],input
   .stats4 .stat{padding:11px 12px}
   .stats4 .stat b{font-size:20px}
   .tab{min-height:48px}
+  .alchk{min-height:48px;padding:0 6px}
   .login{grid-template-columns:minmax(0,1fr)}
   .mobout{display:inline-flex!important}
 }
@@ -656,7 +657,7 @@ fieldset.certcheck[disabled]{opacity:.8}
 .alopt[aria-pressed="true"],label.alopt:has(input:checked){border-color:var(--accent,currentColor);box-shadow:inset 0 0 0 1px var(--accent,currentColor)}
 label.alopt{grid-template-columns:auto 1fr;align-items:start;gap:8px}label.alopt span{display:grid;gap:2px}
 .alpick{display:grid;gap:10px}.alpick fieldset{border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px 16px;min-width:0}
-.alpick legend{font-size:12px;padding:0 4px;opacity:.75}.alchk{display:inline-flex;align-items:center;gap:6px}
+.alpick legend{font-size:12px;padding:0 4px;opacity:.75}.alchk{display:inline-flex;align-items:center;gap:6px}.alchk.islocked{opacity:.5;cursor:not-allowed}
 .svcalloc .warn{color:var(--warn,#b45309)}
 @media (max-width:520px){.alseg{grid-template-columns:1fr}}
 /* ---- v44: business-wide defaults panel and the collapsed inactive/template accordion ---- */
@@ -1379,17 +1380,17 @@ function bkBlock(sv,mode){
 /* "Who delivers it": the allocation-mode toggle (Group/Global vs Provider specific) and, in provider mode, who may deliver it. Rules-role only, like the rest of Booking and pricing. */
 function allocBlock(sv,mode){
   if(!canRules())return '';
-  var isNew=mode==='new',a=isNew?{mode:'group',staff:[],cls:[]}:allocOf(sv),P=isNew?'aln_':'al'+sv.id+'_',prov=a.mode==='provider';
+  var isNew=mode==='new',a=isNew?{mode:'group',staff:[],cls:[]}:allocOf(sv),P=isNew?'aln_':'al'+sv.id+'_',prov=a.mode==='provider',locked=!isNew&&!prov;   /* group mode now shows the saved names greyed instead of hiding them, so nothing looks lost */
   function seg(v,label,hint){var on=a.mode===v;
     return isNew?'<label class="alopt"><input type="radio" name="alnmode" id="'+P+v+'" value="'+v+'"'+(on?' checked':'')+' data-c="svcnewmode"><span><b>'+label+'</b><small>'+hint+'</small></span></label>'
       :'<button type="button" class="alopt" aria-pressed="'+on+'" data-a="svcMode" data-id="'+sv.id+'" data-v="'+v+'"><b>'+label+'</b><small>'+hint+'</small></button>'}
-  function box(k,id,label,on){return '<label class="alchk"><input type="checkbox" id="'+P+k+id+'" value="'+esc(id)+'"'+(on?' checked':'')+(isNew?' data-grp="'+P+k+'"':' data-c="svcprov" data-id="'+sv.id+'" data-k="'+k+'" data-v="'+esc(id)+'"')+'><span>'+esc(label)+'</span></label>'}
+  function box(k,id,label,on){return '<label class="alchk'+(locked?' islocked':'')+'"><input type="checkbox" id="'+P+k+id+'" value="'+esc(id)+'"'+(on?' checked':'')+(locked?' disabled':'')+(isNew?' data-grp="'+P+k+'"':' data-c="svcprov" data-id="'+sv.id+'" data-k="'+k+'" data-v="'+esc(id)+'"')+'><span>'+esc(label)+'</span></label>'}
   var staff=activeStaff(),pick='<div class="alpick"'+(isNew&&!prov?' hidden':'')+' id="'+P+'pick">'+
     '<fieldset><legend>Named '+esc(LB().staffPlural||'providers')+'</legend>'+(staff.length?staff.map(function(s){return box('s',s.id,s.name,a.staff.indexOf(s.id)>=0)}).join(''):'<span class="sm muted">No active staff yet</span>')+'</fieldset>'+
     '<fieldset><legend>Or anyone holding a classification</legend>'+B().classes.map(function(c){return box('c',c.id,c.name,a.cls.indexOf(c.id)>=0)}).join('')+'</fieldset>'+
     '<p class="sm muted">A time only shows at checkout when one of these people has a published, bookable shift for it. Pick at least one.</p></div>';
   var head='<div class="svclbl"><b>Who delivers it</b><span class="sm muted">'+(isNew||!prov?'Group/Global uses any available provider. Provider specific ties it to named people or a classification.':esc(allocText(sv)))+'</span></div>';
-  return '<div class="svcbk svcalloc" role="group" aria-label="Who delivers it">'+head+'<div class="alseg" role="group" aria-label="Allocation mode">'+seg('group','Group/Global','Any available provider, on the days and hours above')+seg('provider','Provider specific','Only the people or classification you pick')+'</div>'+((!isNew&&!prov)?'':pick)+(!isNew&&prov&&!allocReady(sv)?'<p class="sm warn">Nothing chosen yet, so customers cannot book this until you pick someone.</p>':'')+'</div>';
+  return '<div class="svcbk svcalloc" role="group" aria-label="Who delivers it">'+head+'<div class="alseg" role="group" aria-label="Allocation mode">'+seg('group','Group/Global','Any available provider, on the days and hours above')+seg('provider','Provider specific','Only the people or classification you pick')+'</div>'+pick+(locked?'<p class="sm muted">Greyed out while Group/Global is on. Your saved names are kept, so switch to Provider specific to use them.</p>':'')+(!isNew&&prov&&!allocReady(sv)?'<p class="sm warn">Nothing chosen yet, so customers cannot book this until you pick someone.</p>':'')+'</div>';
 }
 /* a person may only hold so many of a service per day and per week; counted per person once you say who it is for */
 function limitProblems(plan){
@@ -4175,7 +4176,6 @@ document.addEventListener('click',function(e){
   else if(a==='svcMode'){
     if(!canRules())return;var sa=svcOf(el.dataset.id);if(!sa)return;
     var cu=allocOf(sa);cu.mode=el.dataset.v==='provider'?'provider':'group';
-    if(cu.mode==='group'){cu.staff=[];cu.cls=[]}   /* group services name nobody; the picks are cleared so the server contract holds */
     sa.alloc=cu;
     if(allocReady(sa))submitOffering(sa);else toast('Pick who delivers '+sa.name+'. Until then customers cannot book it');
   }
