@@ -1144,7 +1144,7 @@ function hmMin(s){var m=/^(\d{1,2}):(\d{2})$/.exec(String(s||''));return m?(+m[1
 /* Override hierarchy: a service's own value is read FIRST; the business-wide dictionary (B().rules) is consulted only when that one field is null, blank or not a usable number. */
 function bkHas(v){return v!=null&&v!==''&&!(typeof v==='number'&&isNaN(v))&&!(typeof v==='string'&&isNaN(+v))}
 function bkPick(own,min,fallback){return bkHas(own)&&+own>=min?+own:fallback}
-function bkOf(sv){var b=sv&&sv.bk||{},R=B().rules;return{every:bkPick(b.every,1,R.startStep||10),lead:bkPick(b.lead,0,R.noticeHours),ahead:bkPick(b.ahead,1,R.advanceDays),perDay:b.perDay||0,perWeek:b.perWeek||0,days:(b.days&&b.days.length)?b.days:[0,1,2,3,4,5,6],early:b.early||'',late:b.late||'',hold:b.hold||120}}
+function bkOf(sv){var b=sv&&sv.bk||{},R=B().rules;return{every:bkPick(b.every,1,R.startStep||10),lead:bkPick(b.lead,0,R.noticeHours),ahead:bkPick(b.ahead,1,R.advanceDays),perDay:b.perDay||0,perWeek:b.perWeek||0,days:(b.days&&b.days.length)?b.days:[0,1,2,3,4,5,6],early:b.early||'',late:b.late||'',hold:b.hold||120,minPerWeek:b.minPerWeek||0,allowBackToBackApproval:!!b.allowBackToBackApproval}}
 /* start times for a service: its own interval is read off the clock (every 60 = on the hour); otherwise the business's grid */
 /* the grid a service is drawn on: its own Start Interval when set (10 to 60, in 10s), otherwise the business-wide interval, and only then the 10-minute floor */
 function gridOf(sv){var e=sv&&sv.bk&&sv.bk.every,R=B().rules;if(e>=10&&e<=240&&e%10===0)return{every:e,source:'offering'};var base=R.startStep||10,d=sv&&sv.min?durStep(sv.min,base):base;if(d!==base)return{every:d,source:'duration'};return{every:base,source:R.startStep?'business':'default'}}
@@ -1187,6 +1187,8 @@ function bkClean(r){
   if(+r.ahead){o.ahead=Math.max(1,Math.min(365,Math.round(+r.ahead)))}
   if(+r.perDay){o.perDay=Math.max(1,Math.min(50,Math.round(+r.perDay)))}
   if(+r.perWeek){o.perWeek=Math.max(1,Math.min(200,Math.round(+r.perWeek)))}
+  if(+r.minPerWeek){o.minPerWeek=Math.max(1,Math.min(200,Math.round(+r.minPerWeek)))}   /* a weekly MINIMUM: a soft nag at checkout, never a block */
+  if(r.allowBackToBackApproval)o.allowBackToBackApproval=true   /* route an adjacent pair to the 12.4 waiting mechanism instead of a flat refusal */
   if(+r.hold){o.hold=Math.max(HOLD_MIN,Math.min(HOLD_MAX,Math.round(+r.hold)))}
   if(r.days&&r.days.length&&r.days.length<7)o.days=r.days.filter(function(d,i,a){return d>=0&&d<=6&&a.indexOf(d)===i}).sort(function(x,y){return x-y});
   if(hmMin(r.early)>=0)o.early=r.early;
@@ -1410,6 +1412,74 @@ function limitProblems(plan){
     cnt[dk]=(cnt[dk]||0)+1;cnt[wkk]=(cnt[wkk]||0)+1;
     if(k.perDay&&have(date,date)+cnt[dk]>k.perDay&&!seen['d'+sv.id]){seen['d'+sv.id]=1;out.push({kind:'rule',text:sv.name+' allows '+k.perDay+' per person per day'})}
     if(k.perWeek&&have(wk,ds(addD(W,6)))+cnt[wkk]>k.perWeek&&!seen['w'+sv.id]){seen['w'+sv.id]=1;out.push({kind:'rule',text:sv.name+' allows '+k.perWeek+' per person per week'})}
+  });
+  return out;
+}
+/* ---------------------------------------------------------------------------
+   Sequencing: the GAP between two lessons, not the COUNT of them.
+
+   limitProblems() above answers "how many?". This answers "in what order, and
+   how far apart?" over the same rows, so it rides the same concat in cartPlan()
+   and nothing else moves.
+
+   Three weights, deliberately different:
+     kind:'rule'  a hard refusal - the break is too short
+     kind:'wait'  belongs to the 12.4 waiting mechanism - an adjacent pair
+                  waiting on an instructor's approval
+     kind:'note'  a soft nag - below the weekly minimum. A minimum must NEVER
+                  block a sale, so every gate reads blocking(plan) and never
+                  plan.problems directly.
+
+   Scope: until courses (B1) exist these are per-SERVICE settings on bkOf,
+   inherited by every booking of that service.
+--------------------------------------------------------------------------- */
+var SEQ_MIN_GAP=20;   /* minutes between two lessons in one window. A constant until B4 turns it into a field */
+function blocking(plan){return plan.problems.filter(function(p){return p.kind!=='note'})}
+function notes(plan){return plan.problems.filter(function(p){return p.kind==='note'})}
+function sequenceProblems(plan){
+  var out=[],u=me(),seen={};
+  plan.rows.forEach(function(r,ri){
+    var sv=r.it.sv,k=bkOf(sv),win=r.it.x.id,
+        pid=r.it.c.pid||ui.pid||'',start=r.it.c.t,end=start+sv.min;
+    var mates=liveBook().filter(function(q){
+      return q.cust===u.id&&q.svc===sv.id&&q.shift===win&&(!pid||q.pid===pid||!q.pid)
+    }).map(function(q){return {t:q.t,len:q.len}});
+    plan.rows.forEach(function(r2,ri2){
+      if(ri2===ri)return;                                   /* not this row */
+      if(r2.it.x.id!==win)return;                           /* a different window: two totals, not a sequence */
+      if((r2.it.c.pid||ui.pid||'')!==pid)return;            /* a different person */
+      mates.push({t:r2.it.c.t,len:r2.it.sv.min});
+    });
+    mates.forEach(function(m){
+      var a=start<m.t?end:m.t+(m.len||sv.min),b=start<m.t?m.t:start,gap=b-a;
+      if(gap>=SEQ_MIN_GAP)return;                           /* a real break: fine */
+      var key='g|'+sv.id+'|'+win+'|'+pid;if(seen[key])return;seen[key]=1;
+      if(gap<0){
+        /* not a gap at all: the two RANGES overlap. cartToggle() only guards cart-against-cart,
+           so a pick can still sit on top of a lesson the person already holds. */
+        out.push({kind:'rule',text:sv.name+': that time overlaps a lesson you already have in this session'});
+      }else if(k.allowBackToBackApproval){
+        /* NOT a refusal, and NOT a new workflow: this is the 12.4 waiting mechanism,
+           one mechanism with three uses. Until B5 is built there is nothing to hand it
+           to, so say so plainly rather than fake a pending state. */
+        out.push({kind:'wait',text:sv.name+': two lessons this close need an instructor\'s approval, and approvals are not built yet'});
+      }else{
+        out.push({kind:'rule',text:sv.name+' needs '+SEQ_MIN_GAP+' minutes between two lessons in the same session (these are '+gap+' apart)'});
+      }
+    });
+    if(k.minPerWeek){
+      var wk=ds(addD(pd(r.it.x.date),-dIdx(r.it.x.date))),wkEnd=ds(addD(pd(wk),6));
+      var same=function(d){return d>=wk&&d<=wkEnd};
+      var have=liveBook().filter(function(q){
+        return q.cust===u.id&&q.svc===sv.id&&(!pid||q.pid===pid||!q.pid)&&same(q.date)}).length;
+      var inCart=plan.rows.filter(function(r3){
+        return r3.it.sv.id===sv.id&&(r3.it.c.pid||ui.pid||'')===pid&&same(r3.it.x.date)}).length;
+      var key2='m|'+sv.id+'|'+wk+'|'+pid;
+      if(have+inCart<k.minPerWeek&&!seen[key2]){
+        seen[key2]=1;
+        out.push({kind:'note',text:sv.name+' is usually booked '+k.minPerWeek+' times a week - this week has '+(have+inCart)+'. You can still book'});
+      }
+    }
   });
   return out;
 }
@@ -3917,7 +3987,7 @@ function cartPlan(){
     if(pk)used[pk.id]=(used[pk.id]||0)+1;else due+=it.sv.cents;
     rows.push({it:it,pk:pk});
   });
-  var plan={rows:rows,due:due,credits:rows.filter(function(r){return r.pk}).length};plan.problems=commitProblems(plan).concat(limitProblems(plan));return plan;
+  var plan={rows:rows,due:due,credits:rows.filter(function(r){return r.pk}).length};plan.problems=commitProblems(plan).concat(limitProblems(plan)).concat(sequenceProblems(plan));return plan;
 }
 function payCart(){
   var u=me(),plan=cartPlan();
@@ -3926,7 +3996,7 @@ function payCart(){
   var gone=[];
   plan.rows.forEach(function(r){var x=r.it.x,t=r.it.c.t;if(x.online===false||!bookableShift(x)||!fits(x,t,r.it.sv.min)||!bkOk(x.date,t,r.it.sv))gone.push(r.it.c)});
   if(gone.length){ui.cart=ui.cart.filter(function(c){return gone.indexOf(c)<0});toast('Sorry, '+(gone.length===1?'one time was':gone.length+' times were')+' just taken. We took '+(gone.length===1?'it':'them')+' off your list. Check the rest and try again');if(!ui.cart.length)ui.review=false;return}
-  if(plan.problems.length){toast(plan.problems[0].text+(plan.problems[0].kind==='rule'?'. Remove a time to continue':'. Add more times to meet the registration'));return}
+  if(blocking(plan).length){toast(blocking(plan)[0].text+(blocking(plan)[0].kind==='rule'?'. Remove a time to continue':'. Add more times to meet the registration'));return}   /* a 'note' must never reach here - it is a nag, not a refusal */
   var noCredit=plan.rows.filter(function(r){return !r.pk&&!soldSingle(r.it.sv)});
   if(noCredit.length){toast(noCredit[0].it.sv.name+' is sold in packages only, and you have no credit for it');return}
   var needDefault=plan.rows.some(function(r){return !r.it.c.pid||!u.people.some(function(q){return q.id===r.it.c.pid})}),who=null;
@@ -3945,7 +4015,7 @@ function payCart(){
 function cartBar(){
   var items=cartItems();if(!items.length)return '';
   var plan=cartPlan();
-  return '<div class="cartbar" role="region" aria-label="Your selection"><div><b>'+items.length+' time'+(items.length===1?'':'s')+' selected</b><div class="sm muted">'+(plan.credits?plan.credits+' with package credits · ':'')+(plan.due?money(plan.due)+' to pay':'nothing to pay')+'</div>'+(plan.problems.length?'<div class="sm" style="color:var(--warn)">'+(plan.problems[0].kind==='rule'?'Limit reached: ':'Registration incomplete: ')+esc(plan.problems[0].text)+'</div>':'')+'</div><div class="row" style="gap:8px"><button class="btn sm" data-a="cartclear">Clear</button><button class="btn pri" data-a="cartopen">Review and book</button></div></div>';
+  return '<div class="cartbar" role="region" aria-label="Your selection"><div><b>'+items.length+' time'+(items.length===1?'':'s')+' selected</b><div class="sm muted">'+(plan.credits?plan.credits+' with package credits · ':'')+(plan.due?money(plan.due)+' to pay':'nothing to pay')+'</div>'+(blocking(plan).length?'<div class="sm" style="color:var(--warn)">'+(blocking(plan)[0].kind==='rule'?'Limit reached: ':'Registration incomplete: ')+esc(blocking(plan)[0].text)+'</div>':'')+(notes(plan).length?'<div class="sm muted">'+esc(notes(plan)[0].text)+'</div>':'')+'</div><div class="row" style="gap:8px"><button class="btn sm" data-a="cartclear">Clear</button><button class="btn pri" data-a="cartopen">Review and book</button></div></div>';
 }
 function checkout(){
   if(ui.buy){
@@ -3969,10 +4039,10 @@ function checkout(){
   '<div class="row sp"><h3 style="font-size:20px">Confirm '+plan.rows.length+' '+esc(L.session.toLowerCase())+(plan.rows.length===1?'':'s')+'</h3><button class="btn sm" data-a="close">Close</button></div>'+
   '<div style="display:grid;gap:8px">'+rows+'</div>'+
   (haveCred?'<label class="row" style="gap:8px;font-weight:500"><input type="checkbox" data-c="usecred" '+(ui.useCredits!==false?'checked':'')+'> Use my package credits where they apply</label>':'')+
-  (plan.problems.length?'<div class="card flat" style="background:var(--warn-soft);border-color:var(--warn)" role="alert"><b>'+(plan.problems.some(function(p){return p.kind!=='rule'})?'Registration needed':'Booking limit reached')+'</b>'+plan.problems.map(function(p){return '<div class="sm">'+esc(p.text)+'</div>'}).join('')+'<div class="sm muted" style="margin-top:4px">Close this and pick more times to meet it.</div></div>':'')+
+  (blocking(plan).length?'<div class="card flat" style="background:var(--warn-soft);border-color:var(--warn)" role="alert"><b>'+(blocking(plan).some(function(p){return p.kind!=='rule'})?'Registration needed':'Booking limit reached')+'</b>'+blocking(plan).map(function(p){return '<div class="sm">'+esc(p.text)+'</div>'}).join('')+'<div class="sm muted" style="margin-top:4px">Close this and pick more times to meet it.</div></div>':'')+(notes(plan).length?'<div class="card flat" role="status"><b>Worth knowing</b>'+notes(plan).map(function(p){return '<div class="sm muted">'+esc(p.text)+'</div>'}).join('')+'</div>':'')+
   personPicker(u)+
   '<p class="sm muted">Free cancellation until '+B().rules.cancelHours+' hours before each start. After that a '+B().rules.lateFeePct+'% late fee applies (a package credit is used instead), and a no-show is charged '+B().rules.noShowFeePct+'%. Payment is simulated in this prototype, so no card is charged.</p>'+
-  '<button class="btn pri" style="width:100%;padding:12px" data-a="cpay" '+(plan.problems.length?'disabled':'')+'>'+(plan.due?'Pay '+money(plan.due)+' and book '+plan.rows.length:'Book '+plan.rows.length+' with credits')+'</button></div></div>';
+  '<button class="btn pri" style="width:100%;padding:12px" data-a="cpay" '+(blocking(plan).length?'disabled':'')+'>'+(plan.due?'Pay '+money(plan.due)+' and book '+plan.rows.length:'Book '+plan.rows.length+' with credits')+'</button></div></div>';
 }
 function pgPackages(){
   var u=me(),L=LB(),pk=activePkgs(),mine=(u.packs||[]).slice().sort(function(a,b){return a.exp<b.exp?-1:1});
