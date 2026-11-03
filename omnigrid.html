@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>OmniGrid</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -3106,7 +3107,7 @@ function pgAvailability(){
   var u=me(),s=staffOf(u.staffId),av=B().avail[s.id],w=wdates(),cnt=0,hrs=0;
   Object.keys(av).forEach(function(k){if(av[k]){cnt++;hrs+=4}});
   var taken=function(dstr,bid){return B().shifts.some(function(x){if(x.sid!==s.id||x.date!==dstr)return false;for(var h=x.s;h<x.e;h++)if(blockOf(h)===bid)return true;return false})};
-  var h=pageHead('Employee portal','My availability','Tap a block to switch it between available and unavailable. Tap the star to mark your preferred hours. Managers can only schedule you into blocks you mark available. This repeats every week.');
+  var h=pageHead('Employee portal','Usual hours — a rough weekly blueprint','Your ROUGH weekly default: three day-parts a day (Morning, Afternoon, Evening), repeating every week. It softly pre-populates the calendar and is NOT what you will actually work — set the exact times on My availability. Tap a block to switch it between available and unavailable; tap the star to mark it preferred. Managers can only schedule you into a block you mark available.');
   h+='<div class="cols"><div class="week">';
   w.forEach(function(d,i){
     var dstr=ds(d);
