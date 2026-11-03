@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Capital — say it, don't type it</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08090d; --panel:#0e0f16; --panel2:#12131d; --line:#1d1f2e; --line2:#262a3d;
+  --ink:#e8ecf4; --dim:#8b93a7; --dim2:#5f677a;
+  --green:#34d399; --green-d:#0c2a22; --red:#f87272; --red-d:#2c1218; --amber:#fcd34d; --amber-d:#2a2410;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:40px}
+h1,h2,h3{font-weight:650;letter-spacing:-.02em}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:9px 11px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding:0 14px}
+
+header{position:sticky;top:0;z-index:40;background:rgba(8,9,13,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.hbar{display:flex;align-items:center;gap:10px;padding:11px 14px;max-width:1080px;margin:0 auto}
+.mark{width:10px;height:10px;border-radius:3px;background:var(--green);box-shadow:0 0 12px rgba(52,211,153,.7);flex:none}
+h1{font-size:16px}
+.badge{margin-left:auto;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--green);
+  border:1px solid rgba(52,211,153,.25);background:rgba(52,211,153,.08);padding:4px 8px;border-radius:7px;white-space:nowrap}
+
+.cmd{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.cmdrow{display:flex;gap:8px}
+.cmdrow input{flex:1;border-radius:11px;padding:12px 13px}
+.btn{background:var(--green);color:#04231a;font-weight:650;border-radius:11px;padding:12px 16px;flex:none}
+.btn:hover{background:#5ee0b0}
+.btn.ghost{background:transparent;color:var(--dim);border:1px solid var(--line2);font-weight:500}
+.btn.ghost:hover{color:var(--ink);border-color:var(--dim2)}
+.btn.small{padding:7px 11px;font-size:12.5px;border-radius:9px}
+.mic{flex:none;width:46px;background:var(--panel2);border:1px solid var(--line2);border-radius:11px;font-size:18px}
+.mic.on{border-color:var(--green);background:var(--green-d)}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.chip{font-size:12.5px;color:var(--dim);border:1px solid var(--line2);border-radius:999px;padding:6px 11px}
+.chip:hover{color:var(--green);border-color:rgba(52,211,153,.45)}
+.out{margin-top:12px;display:none}
+.out.show{display:block}
+.card{border-radius:11px;padding:12px 13px;font-size:14px}
+.card.done{background:var(--green-d);border:1px solid rgba(52,211,153,.3)}
+.card.ask{background:var(--amber-d);border:1px solid rgba(252,211,77,.32)}
+.card.note{background:var(--panel2);border:1px solid var(--line2);color:var(--dim)}
+.card.err{background:var(--red-d);border:1px solid rgba(248,114,114,.3)}
+.card b{color:var(--ink)}
+.card .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.k{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+
+.cols{display:grid;gap:16px;margin-top:16px}
+@media(min-width:900px){.cols{grid-template-columns:340px 1fr;align-items:start}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.panel+.panel{margin-top:16px}
+.phead{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.phead h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.phead .sp{margin-left:auto}
+
+.headline{border-radius:14px;padding:14px;border:1px solid var(--line);background:var(--panel2)}
+.headline.red{border-color:rgba(248,114,114,.4);background:linear-gradient(180deg,rgba(248,114,114,.12),transparent)}
+.headline.ok{border-color:rgba(52,211,153,.28);background:linear-gradient(180deg,rgba(52,211,153,.1),transparent)}
+.headline .big{font-size:26px;font-weight:700;letter-spacing:-.03em}
+.headline .sub{color:var(--dim);font-size:13px;margin-top:3px}
+
+.item{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:none}
+.item .nm{flex:1;min-width:0}
+.item .nm .t{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .nm .m{font-size:11.5px;color:var(--dim2)}
+.item .amt{font-family:var(--mono);font-size:13.5px}
+.item .amt.in{color:var(--green)}
+.x{color:var(--dim2);border:1px solid var(--line2);border-radius:7px;width:26px;height:26px;line-height:1;flex:none;font-size:15px}
+.x:hover{color:var(--red);border-color:rgba(248,114,114,.4)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1.4fr .9fr .9fr;gap:8px}
+.lbl{font-size:11px;color:var(--dim2);text-transform:uppercase;letter-spacing:.07em;margin:9px 0 4px}
+.empty{color:var(--dim2);font-size:13px;padding:10px 0}
+
+.views{display:flex;gap:6px;margin-left:auto}
+.vs{font-size:12px;color:var(--dim);border:1px solid var(--line2);border-radius:8px;padding:5px 10px}
+.vs.on{color:var(--green);border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.08)}
+.mon{margin-top:14px}
+.mon h3{font-size:13px;color:var(--dim);margin-bottom:7px}
+.wds,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wds div{font-size:10px;color:var(--dim2);text-align:center;text-transform:uppercase;letter-spacing:.06em;padding-bottom:3px}
+.cell{position:relative;min-height:62px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);
+  padding:5px 5px 16px;text-align:left;overflow:hidden}
+.cell.blank{background:transparent;border-color:transparent;cursor:default}
+.cell.red{background:linear-gradient(180deg,rgba(248,114,114,.18),rgba(248,114,114,.05));border-color:rgba(248,114,114,.45)}
+.cell.amber{background:linear-gradient(180deg,rgba(252,211,77,.14),transparent);border-color:rgba(252,211,77,.35)}
+.cell.sel{border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
+.cell .d{font-size:11px;color:var(--dim);font-family:var(--mono)}
+.cell.red .d{color:var(--red)}
+.cell .lines{margin-top:2px;display:flex;flex-direction:column;gap:1px}
+.cell .ln{font-size:9.5px;line-height:1.25;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .ln.in{color:var(--green)}
+.cell .bal{position:absolute;left:5px;bottom:4px;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.cell.red .bal{color:var(--red);font-weight:700}
+.cell.amber .bal{color:var(--amber)}
+.detail{margin-top:12px;border:1px solid var(--line);border-radius:11px;background:var(--panel2);padding:12px}
+.detail .dh{font-size:12.5px;color:var(--dim);margin-bottom:8px}
+.redlist{margin-top:12px}
+.redrow{display:flex;gap:8px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.redrow:last-child{border-bottom:none}
+.redrow .dd{font-family:var(--mono);font-size:12.5px;color:var(--red);flex:none;width:88px}
+.redrow .txt{flex:1;color:var(--dim)}
+.redrow .bb{font-family:var(--mono);color:var(--red)}
+
+.drop{border:1px dashed var(--line2);border-radius:11px;padding:16px;text-align:center;color:var(--dim);font-size:13px}
+.drop.over{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.06)}
+.cand{display:flex;gap:9px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.cand .cn{flex:1}
+.cand .cn small{display:block;color:var(--dim2);font-size:11.5px}
+.warn{font-size:12.5px;color:var(--amber);margin-top:9px}
+.foot{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);color:var(--dim2);font-size:11.5px;line-height:1.6}
+.foot b{color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header><div class="hbar">
+  <span class="mark"></span><h1>Capital</h1>
+  <span class="badge">Runs in your browser · nothing sent</span>
+</div></header>
+
+<div class="wrap">
+
+  <section class="cmd">
+    <div class="cmdrow">
+      <input id="cmd" placeholder="Tell me: a bill, your pay, or ask what's coming…" autocomplete="off" spellcheck="false">
+      <button class="mic" id="mic" title="Speak">🎙</button>
+      <button class="btn" id="go">Tell it</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="out" id="out"></div>
+  </section>
+
+  <div class="cols">
+    <div>
+      <section class="panel">
+        <div class="phead"><h2>Your money</h2>
+          <span class="sp"></span>
+          <button class="btn ghost small" id="example">Show an example</button>
+        </div>
+        <div id="headline"></div>
+
+        <div class="lbl">Starting balance today</div>
+        <input id="bal" class="num" inputmode="decimal" placeholder="e.g. 312.40">
+
+        <div class="lbl">Bills and income</div>
+        <div id="items"></div>
+
+        <div class="lbl">Or add it by hand</div>
+        <div class="grid3">
+          <input id="f_name" placeholder="Name">
+          <input id="f_amt" class="num" inputmode="decimal" placeholder="Amount">
+          <select id="f_dir"><option value="out">Bill</option><option value="in">Income</option></select>
+        </div>
+        <div class="grid3" style="margin-top:8px">
+          <select id="f_freq">
+            <option value="monthly">Every month</option>
+            <option value="fortnightly">Every 2 weeks</option>
+            <option value="weekly">Every week</option>
+            <option value="quarterly">Every 3 months</option>
+            <option value="biannual">Every 6 months</option>
+            <option value="yearly">Once a year</option>
+          </select>
+          <input id="f_day" class="num" inputmode="numeric" placeholder="Day (1–31)">
+          <button class="btn" id="f_add">Add</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="phead"><h2>Check for anything I missed</h2></div>
+        <p style="color:var(--dim);font-size:13px;margin-bottom:10px">
+          Drop in a bank statement and I'll look for bills you forgot. <b style="color:var(--ink)">You don't have to give me
+          the file to use the tool</b> — this is a check, not your data. Delete it when I'm done.
+        </p>
+        <div id="impArea">
+          <div class="drop" id="drop">Drop a .csv here, or
+            <label style="color:var(--green);cursor:pointer;text-decoration:underline">choose a file
+              <input type="file" id="file" accept=".csv,text/csv" style="display:none">
+            </label>
+          </div>
+          <div class="lbl">Or paste the rows</div>
+          <textarea id="paste" rows="3" placeholder="date,description,amount&#10;2026-10-01,RENT, -1400"></textarea>
+          <button class="btn ghost small" id="doImport" style="margin-top:8px">Look for repeats</button>
+        </div>
+        <div id="impOut"></div>
+      </section>
+
+      <section class="panel">
+        <div class="phead"><h2>Take it with you</h2></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost small" id="csv">Export the calendar (CSV)</button>
+          <button class="btn ghost small" id="json">Export everything (backup)</button>
+          <button class="btn ghost small" id="print">Print</button>
+          <button class="btn ghost small" id="wipe">Start over</button>
+        </div>
+      </section>
+    </div>
+
+    <div>
+      <section class="panel">
+        <div class="phead"><h2>Cash flow</h2>
+          <span class="views">
+            <button class="vs on" data-h="30">30 days</button>
+            <button class="vs" data-h="90">3 months</button>
+            <button class="vs" data-h="180">6 months</button>
+          </span>
+        </div>
+        <div id="cal"></div>
+      </section>
+      <div class="foot">
+        <b>Where your numbers live:</b> in this browser only. Nothing is uploaded, there is no account, and the page
+        asks nothing of the internet after it loads. Export is the only way anything leaves.
+        <br><b>Two honest limits:</b> a bill you've never paid before can't be predicted, and one month of history only
+        reveals monthly bills — the quarterly and twice-a-year ones need a longer history to show up.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var D = 86400000;
+function startOfDay(d){ var x = new Date(d); x.setHours(0,0,0,0); return x; }
+function addDays(d,n){ var x = startOfDay(d); x.setDate(x.getDate()+n); return x; }
+function iso(d){ var x = startOfDay(d); var m = String(x.getMonth()+1).padStart(2,'0'); var dd = String(x.getDate()).padStart(2,'0'); return x.getFullYear()+'-'+m+'-'+dd; }
+function daysIn(y,m){ return new Date(y, m+1, 0).getDate(); }
+function daysBetween(a,b){ return Math.round((startOfDay(b)-startOfDay(a))/D); }
+function money(n){
+  var neg = n < 0, a = Math.abs(n);
+  var s = a.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+  if(s.slice(-3) === '.00') s = s.slice(0,-3);
+  return (neg?'-':'') + '$' + s;
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+var FREQ_LABEL = { monthly:'every month', fortnightly:'every 2 weeks', weekly:'every week',
+                   quarterly:'every 3 months', biannual:'every 6 months', yearly:'once a year' };
+var WD = { sunday:0,sun:0,monday:1,mon:1,tuesday:2,tue:2,tues:2,wednesday:3,wed:3,thursday:4,thu:4,thur:4,thurs:4,friday:5,fri:5,saturday:6,sat:6 };
+
+/* ===== state ===== */
+var KEY = 'capital.v1';
+var S = { balance:0, balanceSet:false, items:[], horizon:30, threshold:200, rawRows:null };
+var selDay = null;
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify({balance:S.balance,balanceSet:S.balanceSet,items:S.items,horizon:S.horizon,threshold:S.threshold})); }catch(e){} }
+function load(){
+  try{
+    var raw = localStorage.getItem(KEY); if(!raw) return;
+    var o = JSON.parse(raw);
+    S.balance = o.balance||0; S.balanceSet = !!o.balanceSet; S.items = o.items||[];
+    S.horizon = o.horizon||30; S.threshold = o.threshold||200;
+  }catch(e){}
+}
+var uid = 1;
+function nextId(){ return 'i' + (uid++) + '-' + Math.random().toString(36).slice(2,6); }
+
+/* ===== projection ===== */
+function occurrences(it, from, to){
+  var out = [];
+  if(it.freq === 'weekly' || it.freq === 'fortnightly'){
+    var step = it.freq === 'weekly' ? 7 : 14;
+    var d = startOfDay(new Date(it.anchorDate));
+    if(isNaN(d.getTime())) return out;
+    while(d < from) d = addDays(d, step);
+    while(d <= to){ out.push(new Date(d)); d = addDays(d, step); }
+    return out;
+  }
+  var mstep = { monthly:1, quarterly:3, biannual:6, yearly:12 }[it.freq] || 1;
+  var anchor = it.anchorMonthIdx;
+  var k = from.getFullYear()*12 + from.getMonth();
+  var endK = to.getFullYear()*12 + to.getMonth();
+  for(; k <= endK; k++){
+    if(anchor != null){
+      var diff = ((k - anchor) % mstep + mstep) % mstep;
+      if(diff !== 0) continue;
+    }
+    var y = Math.floor(k/12), m = k%12;
+    var dd = new Date(y, m, Math.min(it.day || 1, daysIn(y,m)));
+    if(dd >= from && dd <= to) out.push(dd);
+  }
+  return out;
+}
+
+function project(){
+  var today = startOfDay(new Date());
+  var to = addDays(today, S.horizon);
+  var byDay = {};
+  for(var ii=0; ii<S.items.length; ii++){
+    var it = S.items[ii];
+    var list = occurrences(it, today, to);
+    for(var j=0; j<list.length; j++){
+      var k = iso(list[j]);
+      if(!byDay[k]) byDay[k] = [];
+      byDay[k].push({ name:it.name, amount:it.amount, dir:it.dir, freq:it.freq });
+    }
+  }
+  var days = [];
+  var bal = S.balance;
+  for(var d = new Date(today); d <= to; d = addDays(d,1)){
+    var key = iso(d);
+    var ev = byDay[key] || [];
+    for(var m=0; m<ev.length; m++) bal += (ev[m].dir === 'in' ? ev[m].amount : -ev[m].amount);
+    days.push({ date:new Date(d), key:key, events:ev, balance:bal,
+                red: bal < 0, amber: (S.balanceSet && !(bal < 0) && bal < S.threshold) });
+  }
+  return days;
+}
+
+/* ===== render ===== */
+/* Days below zero come in runs. A run is one squeeze, not one problem per day. */
+function episodes(days){
+  var eps = [];
+  for(var i=0; i<days.length; i++){
+    if(days[i].red && (i === 0 || !days[i-1].red)){
+      var end = i;
+      while(end+1 < days.length && days[end+1].red) end++;
+      eps.push({ iStart:i, iEnd:end, start:days[i], end:days[end], len:end-i+1 });
+    }
+  }
+  return eps;
+}
+
+function renderHeadline(days){
+  var el = $('headline');
+  if(!days.length){ el.className = ''; el.innerHTML = ''; return; }
+  if(!S.balanceSet && !S.items.length){
+    el.className = 'headline';
+    el.innerHTML = '<div class="big">Start here</div>'
+      + '<div class="sub">Tell me what you have today, and one bill. Two sentences and the calendar fills in.</div>';
+    return;
+  }
+  var eps = episodes(days);
+  var red = days.filter(function(d){ return d.red; });
+  var low = days.reduce(function(a,b){ return (b.balance < a.balance ? b : a); }, days[0]);
+  if(eps.length){
+    var first = eps[0].start;
+    el.className = 'headline red';
+    el.innerHTML = '<div class="big num">' + money(first.balance) + '</div>'
+      + '<div class="sub">You go short on <b style="color:var(--ink)">'
+      + first.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})
+      + '</b> — ' + eps.length + ' time' + (eps.length>1?'s':'') + ' in the next ' + S.horizon + ' days'
+      + ' (' + red.length + ' day' + (red.length>1?'s':'') + ' under).</div>';
+  } else {
+    el.className = 'headline ok';
+    el.innerHTML = '<div class="big num">' + money(low.balance) + '</div>'
+      + '<div class="sub">Lowest point in the next ' + S.horizon + ' days ('
+      + low.date.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '). Nothing goes negative.</div>';
+  }
+}
+
+function ordinal(n){
+  var s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+function renderItems(){
+  var el = $('items');
+  if(!S.items.length){ el.innerHTML = '<div class="empty">Nothing yet. Tell me a bill — “rent 1400 on the 1st”.</div>'; return; }
+  el.innerHTML = S.items.map(function(it){
+    var when = (it.freq === 'weekly' || it.freq === 'fortnightly')
+      ? FREQ_LABEL[it.freq] + ' from ' + new Date(it.anchorDate).toLocaleDateString('en-US',{month:'short',day:'numeric'})
+      : FREQ_LABEL[it.freq] + ' on the ' + ordinal(it.day);
+    return '<div class="item"><div class="nm"><span class="t">' + esc(it.name) + '</span><span class="m">' + when + '</span></div>'
+      + '<span class="amt ' + (it.dir==='in'?'in':'') + '">' + money(it.amount) + '</span>'
+      + '<button class="x" data-del="' + it.id + '" title="Remove">\u00d7</button></div>';
+  }).join('');
+}
+
+function renderCal(days){
+  var el = $('cal');
+  var months = {};
+  for(var i=0;i<days.length;i++){
+    var k = days[i].date.getFullYear() + '-' + days[i].date.getMonth();
+    if(!months[k]) months[k] = [];
+    months[k].push(days[i]);
+  }
+  var html = '';
+  for(var key in months){
+    var list = months[key];
+    var y = list[0].date.getFullYear(), m = list[0].date.getMonth();
+    var first = new Date(y,m,1), lead = (first.getDay()+6)%7;
+    html += '<div class="mon"><h3>' + first.toLocaleDateString('en-US',{month:'long',year:'numeric'}) + '</h3>';
+    html += '<div class="wds">' + ['M','T','W','T','F','S','S'].map(function(x){ return '<div>'+x+'</div>'; }).join('') + '</div><div class="grid">';
+    for(var b=0;b<lead;b++) html += '<div class="cell blank"></div>';
+    for(var c=0;c<list.length;c++){
+      var d = list[c];
+      var cls = 'cell' + (d.red?' red':'') + (d.amber?' amber':'') + (selDay===d.key?' sel':'');
+      var lines = d.events.slice(0,2).map(function(e){
+        return '<span class="ln' + (e.dir==='in'?' in':'') + '">' + (e.dir==='in'?'+':'-') + esc(e.name).slice(0,12) + '</span>';
+      }).join('');
+      if(d.events.length > 2) lines += '<span class="ln">+' + (d.events.length-2) + ' more</span>';
+      html += '<button class="' + cls + '" data-day="' + d.key + '"><span class="d">' + d.date.getDate() + '</span>'
+        + '<span class="lines">' + lines + '</span><span class="bal">' + money(d.balance) + '</span></button>';
+    }
+    html += '</div></div>';
+  }
+  if(selDay){
+    var sd = null;
+    for(var s=0;s<days.length;s++) if(days[s].key === selDay) sd = days[s];
+    if(sd){
+      html += '<div class="detail"><div class="dh">' + sd.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) + '</div>';
+      if(sd.events.length){
+        html += sd.events.map(function(e){
+          return '<div class="redrow"><span class="dd" style="color:var(--dim)">' + (e.dir==='in'?'in':'out') + '</span><span class="txt">'
+            + esc(e.name) + ' <span style="color:var(--dim2)">(' + FREQ_LABEL[e.freq] + ')</span></span><span class="bb" style="color:'
+            + (e.dir==='in'?'var(--green)':'var(--ink)') + '">' + (e.dir==='in'?'+':'-') + money(e.amount) + '</span></div>';
+        }).join('');
+      } else {
+        html += '<div class="empty">No money moves today. The balance is the answer — it just doesn\u2019t change.</div>';
+      }
+      html += '<div class="redrow"><span class="dd" style="color:var(--dim)">balance</span><span class="txt">Running balance at the end of the day</span>'
+        + '<span class="bb" style="color:' + (sd.red?'var(--red)':sd.amber?'var(--amber)':'var(--green)') + '">' + money(sd.balance) + '</span></div>';
+      html += '</div>';
+    }
+  }
+  var eps = episodes(days);
+  if(eps.length){
+    html += '<div class="redlist"><div class="lbl">When you go short</div>'
+      + eps.slice(0,8).map(function(e){
+        var trigger = e.start.events.map(function(x){ return esc(x.name); }).join(', ') || 'nothing moves';
+        var nxt = days[e.iEnd+1];
+        var tail = nxt
+          ? 'under ' + e.len + ' day' + (e.len>1?'s':'') + ' \u00b7 back up '
+              + nxt.date.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+          : 'still under at the end of the view';
+        return '<div class="redrow"><span class="dd">' + e.start.date.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+          + '</span><span class="txt">' + trigger + ' <span style="color:var(--dim2)">\u2014 ' + tail + '</span></span>'
+          + '<span class="bb">' + money(e.start.balance) + '</span></div>';
+      }).join('')
+      + (eps.length>8 ? '<div class="redrow"><span class="dd"></span><span class="txt">and ' + (eps.length-8) + ' more</span><span class="bb"></span></div>' : '')
+      + '</div>';
+  }
+  el.innerHTML = html || '<div class="empty">Add a balance and a bill, and the calendar fills in.</div>';
+}
+
+function render(){
+  $('bal').value = S.balanceSet ? S.balance : '';
+  var days = project();
+  renderHeadline(days); renderItems(); renderCal(days);
+  var vs = document.querySelectorAll('.vs');
+  for(var i=0;i<vs.length;i++) vs[i].classList.toggle('on', +vs[i].dataset.h === S.horizon);
+}
+
+/* ===== outcomes ===== */
+function outcome(kind, html){
+  var el = $('out');
+  el.className = 'out show';
+  el.innerHTML = '<div class="card ' + kind + '">' + html + '</div>';
+}
+function clearOutcome(){ var el = $('out'); el.className = 'out'; el.innerHTML = ''; }
+
+/* ===== items ===== */
+function nextOccurrenceWeekday(wd){
+  var t = startOfDay(new Date());
+  var d = addDays(t, (wd - t.getDay() + 7) % 7);
+  if(d < t) d = addDays(d,7);
+  return d;
+}
+function addItem(it){
+  it.id = it.id || nextId();
+  if(it.freq === 'weekly' || it.freq === 'fortnightly'){
+    if(!it.anchorDate) it.anchorDate = iso(nextOccurrenceWeekday(it.wd != null ? it.wd : 5));
+  } else {
+    if(it.anchorMonthIdx == null){ var n = new Date(); it.anchorMonthIdx = n.getFullYear()*12 + n.getMonth(); }
+    if(!it.day) it.day = 1;
+  }
+  S.items.push(it);
+}
+function removeItem(id){
+  for(var i=0;i<S.items.length;i++) if(S.items[i].id === id){ var it = S.items[i]; S.items.splice(i,1); return it; }
+  return null;
+}
+
+/* ===== understanding: fixed patterns, no model, nothing leaves the page ===== */
+var INTENTS = [
+  { id:'help', kind:'do', strong:['what can i say','help','commands','what do i type','examples'] },
+  { id:'clear', kind:'ask', strong:['start over','clear everything','wipe it','delete everything','reset'] },
+  { id:'import', kind:'open', strong:['check for anything i missed','check a statement','import','statement','csv','drop in','upload'] },
+  { id:'export', kind:'do', strong:['export','download','save a sheet','spreadsheet','export csv','backup'] },
+  { id:'example', kind:'do', strong:['show an example','example','sample','demo'] },
+  { id:'set_balance', kind:'do', strong:['balance is','starting balance','balance of','cash is'] },
+  { id:'longview', kind:'do', strong:['look 6 months','look six months','show 6 months','show six months','look 3 months','show 3 months','6 months out','6 months ahead','3 months out','long view','look further','further out','next 6 months'] },
+  { id:'shortview', kind:'do', strong:['show 30 days','look 30 days','30 days out','short view','next 30 days','just this month'] },
+  { id:'reddays', kind:'do', strong:['when am i short','when do i go short','go short','go negative','overdrawn','red days','lowest point','run out','tightest'] },
+  { id:'balance_on', kind:'do', strong:['left on','balance on','how much on','what will i have on','will i have on'] },
+  { id:'remove', kind:'ask', strong:['remove','delete the','take off','get rid of'] },
+  { id:'add_income', kind:'do', strong:['add income','pay comes in','my pay','add my pay','income of','pay is','paid'] },
+  { id:'add_bill', kind:'do', strong:['add a bill','add bill','new bill','bill of','add'] }
+];
+var WEAK = ['today','day','show','open','my','the','what','me','on','for','and','a','is','of','will','i','to'];
+
+function normalize(t){
+  return ' ' + t.toLowerCase().replace(/[`~!@#$%^&*()+=\[\]{};:'",.<>\/?\\|]/g,' ').replace(/[-_]/g,' ').replace(/\s+/g,' ').trim() + ' ';
+}
+function scoreIntent(text){
+  var t = normalize(text);
+  var best = null;
+  for(var i=0;i<INTENTS.length;i++){
+    var it = INTENTS[i], strong = 0;
+    for(var p=0;p<it.strong.length;p++){
+      var ph = it.strong[p].replace(/\s+/g,' ');
+      if(t.indexOf(' ' + ph + ' ') > -1) strong += ph.length * 2;
+      else if(t.indexOf(ph) > -1) strong += ph.length;
+    }
+    var weak = 0;
+    for(var w=0;w<WEAK.length;w++) if(t.indexOf(' ' + WEAK[w] + ' ') > -1) weak += 1;
+    var total = strong * 10 + weak;
+    if(strong > 0 && (!best || total > best.total)) best = { intent:it, total:total };
+  }
+  return best ? best.intent : null;
+}
+function nearestIntents(text){
+  var t = normalize(text).trim();
+  var words = t.split(' ').filter(Boolean);
+  var scored = INTENTS.map(function(it){
+    var s = 0;
+    it.strong.forEach(function(p){ p.split(' ').forEach(function(w){ if(words.indexOf(w) > -1) s += w.length; }); });
+    return { it:it, s:s };
+  }).sort(function(a,b){ return b.s - a.s; }).slice(0,3).filter(function(x){ return x.s > 0; });
+  if(scored.length) return scored.map(function(x){ return x.it; });
+  return [INTENTS.filter(function(i){ return i.id==='add_bill'; })[0],
+          INTENTS.filter(function(i){ return i.id==='set_balance'; })[0],
+          INTENTS.filter(function(i){ return i.id==='reddays'; })[0]];
+}
+var SUGGEST = {
+  add_bill:'Add a bill', set_balance:'Set your balance', reddays:'When am I short?',
+  add_income:'Add your pay', longview:'Look 6 months out', shortview:'Show 30 days',
+  help:'What can I say?', import:'Check a statement', balance_on:'Balance on a date',
+  remove:'Remove a bill', export:'Export', clear:'Start over', example:'Show an example'
+};
+
+/* ===== parsing a spoken bill ===== */
+function parseAdd(text, dirHint){
+  var t = ' ' + text.toLowerCase() + ' ';
+  var freq = null, day = null, wd = null, amount = null;
+  var FREQ_PAT = [
+    [/every\s+other\b|fortnight|biweekly|bi.?weekly|every\s+2\s+weeks/, 'fortnightly'],
+    [/every\s+week|weekly|each\s+week|a\s+week/, 'weekly'],
+    [/every\s*(3|three)\s*months?|quarterly|each\s+quarter/, 'quarterly'],
+    [/every\s*(6|six)\s*months?|twice\s+a\s+year|biannual|semi.?annual|half.?year/, 'biannual'],
+    [/every\s+year|yearly|annually|once\s+a\s+year/, 'yearly'],
+    [/every\s+month|monthly|each\s+month|a\s+month|per\s+month/, 'monthly']
+  ];
+  for(var f=0; f<FREQ_PAT.length; f++){
+    if(FREQ_PAT[f][0].test(t)){ freq = FREQ_PAT[f][1]; t = t.replace(FREQ_PAT[f][0], ' '); break; }
+  }
+  var wdM = t.match(/\b(sunday|sun|monday|mon|tuesday|tues|tue|wednesday|wed|thursday|thurs|thur|thu|friday|fri|saturday|sat)\b/);
+  if(wdM){ wd = WD[wdM[1]]; t = t.replace(wdM[0], ' '); }
+  var dayM = t.match(/\b(\d{1,2})\s*(st|nd|rd|th)\b/) || t.match(/\bon\s+the\s+(\d{1,2})\b/) || t.match(/\bevery\s+(\d{1,2})\b/);
+  if(dayM){
+    var n = parseInt(dayM[1] || dayM[2], 10);
+    if(n >= 1 && n <= 31){ day = n; t = t.replace(dayM[0], ' '); }
+  }
+  var amtM = t.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/) || t.match(/(?:^|\s)([\d,]+(?:\.\d{1,2})?)(?=\s|$)/);
+  if(amtM){
+    var v = parseFloat(amtM[1].replace(/,/g,''));
+    if(!isNaN(v) && v > 0){ amount = v; t = t.replace(amtM[0], ' '); }
+  }
+  var dir = dirHint || 'out';
+  if(/\b(pay|paid|paycheck|paycheque|wage|wages|salary|income|deposit)\b/.test(t)) dir = 'in';
+  var name = t.replace(/\b(add|a|an|new|bill|income|of|for|is|called|named|comes?|in|my|the|on|every|each|to|about|other|week|weeks|month|months|day|days|year|years)\b/g,' ')
+              .replace(/\s+/g,' ').trim();
+  if(!name) name = dir === 'in' ? 'Income' : 'Bill';
+  name = name.split(' ').slice(0,4).join(' ');
+  if(amount == null) return { incomplete:true, name:name, freq:freq||'monthly', day:day||1, dir:dir, wd:wd };
+  if(dir === 'in'){
+    if(wd != null || freq === 'weekly' || freq === 'fortnightly')
+      return { name:name, amount:amount, dir:'in', freq:(freq || 'weekly'), wd:(wd != null ? wd : 5) };
+    return { name:name, amount:amount, dir:'in', freq:(freq || 'monthly'), day:day || 1 };
+  }
+  if(freq === 'weekly' || freq === 'fortnightly')
+    return { name:name, amount:amount, dir:'out', freq:freq, wd:(wd != null ? wd : null) };
+  return { name:name, amount:amount, dir:'out', freq:(freq || 'monthly'), day:day || 1 };
+}
+function parseDateQ(text){
+  var t = text.toLowerCase();
+  var m = t.match(/\b(\d{1,2})\s*(st|nd|rd|th)\b/) || t.match(/\b(\d{1,2})\b/);
+  if(!m) return null;
+  var n = parseInt(m[1], 10); if(n < 1 || n > 31) return null;
+  var today = startOfDay(new Date());
+  var y = today.getFullYear(), mo = today.getMonth();
+  var d = new Date(y, mo, Math.min(n, daysIn(y,mo)));
+  if(d < today){ mo += 1; if(mo > 11){ mo = 0; y += 1; } d = new Date(y, mo, Math.min(n, daysIn(y,mo))); }
+  return d;
+}
+
+/* A bare "name  1400  on the 1st" is a bill, even with no verb in it. */
+var UNIT_ONLY = /^(months?|weeks?|days?|years?|dollars?|bucks?|times?|payments?|percent)$/;
+function tryBareBill(raw){
+  if(!/\d/.test(raw)) return false;
+  if(/\?/.test(raw)) return false;
+  var p = parseAdd(raw, null);
+  if(p.amount == null) return false;
+  if(!p.name || UNIT_ONLY.test(p.name)) return false;
+  commitAdd(p);
+  return true;
+}
+
+/* ===== the run switch ===== */
+function run(text){
+  var raw = String(text).trim();
+  if(!raw){ clearOutcome(); return; }
+  var intent = scoreIntent(raw);
+  if(!intent){ if(!tryBareBill(raw)) suggest(raw); return; }
+  var days = project();
+  var i;
+
+  if(intent.id === 'help'){
+    outcome('note', '<div class="k">What you can say</div>'
+      + '<div style="line-height:1.9">'
+      + '\u00b7 <b>rent 1400 on the 1st</b> \u2014 add a monthly bill<br>'
+      + '\u00b7 <b>car insurance 184 every 3 months on the 14th</b><br>'
+      + '\u00b7 <b>my pay is 1820 every other friday</b><br>'
+      + '\u00b7 <b>balance is 312.40</b> \u2014 what you have today<br>'
+      + '\u00b7 <b>when am I short?</b><br>'
+      + '\u00b7 <b>what will I have on the 14th?</b><br>'
+      + '\u00b7 <b>look 6 months out</b><br>'
+      + '\u00b7 <b>remove the phone bill</b><br>'
+      + '\u00b7 <b>check a statement</b> \u00b7 <b>export</b>'
+      + '</div>');
+    return;
+  }
+  if(intent.id === 'example'){
+    loadExample(); selDay = null; render(); save();
+    outcome('done', '<b>An example household is loaded.</b> Look at the calendar \u2014 the red days are the point.');
+    return;
+  }
+  if(intent.id === 'set_balance'){
+    var m = raw.replace(/,/g,'').match(/-?\d+(?:\.\d{1,2})?/);
+    if(!m){ outcome('err','I heard you want to set the balance, but not the number. Try \u201cbalance is 312.40\u201d.'); return; }
+    var v = parseFloat(m[0]); var before = S.balance;
+    S.balance = v; S.balanceSet = true; render(); save();
+    outcome('done', '<b>Balance set to ' + money(v) + '.</b>'
+      + '<div class="row"><button class="btn ghost small" onclick="undoBalance(' + before + ')">undo</button>'
+      + '<span style="color:var(--dim);font-size:12.5px;align-self:center">was ' + money(before) + '</span></div>');
+    return;
+  }
+  if(intent.id === 'longview'){ S.horizon = 180; selDay = null; render(); save();
+    outcome('done','<b>Showing 6 months.</b> This is where the quarterly and twice-a-year bills appear.'); return; }
+  if(intent.id === 'shortview'){ S.horizon = 30; selDay = null; render(); save();
+    outcome('done','<b>Showing 30 days.</b>'); return; }
+  if(intent.id === 'reddays'){
+    var eps2 = episodes(days);
+    if(!eps2.length){
+      var low = days.reduce(function(a,b){ return (b.balance<a.balance?b:a); }, days[0]);
+      outcome('done','<b>Nothing goes negative in the next ' + S.horizon + ' days.</b> Your lowest point is '
+        + money(low.balance) + ' on ' + low.date.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '.');
+      return;
+    }
+    outcome('ask','<b>' + eps2.length + ' time' + (eps2.length>1?'s':'') + ' you\u2019d go short in the next '
+      + S.horizon + ' days.</b><div style="margin-top:8px;line-height:1.9">'
+      + eps2.slice(0,5).map(function(e){
+          var nxt = days[e.iEnd+1];
+          return e.start.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})
+            + ' \u2192 <b class="num" style="color:var(--red)">' + money(e.start.balance) + '</b>'
+            + (nxt ? ' <span style="color:var(--dim)">(back up ' + nxt.date.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ')</span>' : '');
+        }).join('<br>') + '</div>');
+    return;
+  }
+  if(intent.id === 'balance_on'){
+    var dq = parseDateQ(raw);
+    if(!dq){ outcome('err','Which day? Try \u201cwhat will I have on the 14th\u201d.'); return; }
+    var kk = iso(dq), hit = null;
+    for(i=0;i<days.length;i++) if(days[i].key === kk) hit = days[i];
+    if(!hit){
+      outcome('note','<b>' + dq.toLocaleDateString('en-US',{month:'long',day:'numeric'}) + '</b> is past the '
+        + S.horizon + '-day view. Try \u201clook 6 months out\u201d first.');
+      return;
+    }
+    outcome(hit.red?'ask':'done','<b>' + dq.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}) + '</b><br>'
+      + 'End of day: <b class="num" style="color:' + (hit.red?'var(--red)':hit.amber?'var(--amber)':'var(--green)') + '">' + money(hit.balance) + '</b>'
+      + (hit.events.length ? '<div style="margin-top:8px;color:var(--dim);line-height:1.7">'
+          + hit.events.map(function(e){ return (e.dir==='in'?'+':'-') + esc(e.name) + ' ' + money(e.amount); }).join('<br>') + '</div>' : '')
+      + (hit.red ? '<div class="warn" style="color:var(--red)">That day goes short.</div>' : ''));
+    selDay = kk; renderCal(days);
+    return;
+  }
+  if(intent.id === 'add_bill' || intent.id === 'add_income'){
+    var p = parseAdd(raw, intent.id === 'add_income' ? 'in' : null);
+    if(p.incomplete){
+      outcome('ask','<div class="k">Nearly \u2014 I need the amount</div>'
+        + '<div style="margin-bottom:10px"><b>' + esc(p.name) + '</b>, ' + FREQ_LABEL[p.freq] + '</div>'
+        + '<div class="grid2"><input id="q_amt" class="num" inputmode="decimal" placeholder="Amount"></div>'
+        + '<div class="row"><button class="btn small" id="q_ok">Add it</button>'
+        + '<button class="btn ghost small" onclick="clearOutcome()">Never mind</button></div>');
+      $('q_amt').focus();
+      $('q_ok').onclick = function(){
+        var vv = parseFloat(String($('q_amt').value).replace(/[^0-9.]/g,''));
+        if(isNaN(vv)) return;
+        p.amount = vv; p.incomplete = false; commitAdd(p);
+      };
+      return;
+    }
+    commitAdd(p);
+    return;
+  }
+  if(intent.id === 'remove'){
+    var t2 = raw.toLowerCase().replace(/\b(remove|delete|the|take|off|get|rid|of|my|cancel)\b/g,' ').replace(/\s+/g,' ').trim();
+    var hits = S.items.filter(function(it){
+      if(!t2) return false;
+      var nm = it.name.toLowerCase();
+      if(nm.indexOf(t2) > -1 || t2.indexOf(nm) > -1) return true;
+      return t2.split(' ').some(function(w){ return w.length > 2 && nm.indexOf(w) > -1; });
+    });
+    if(!hits.length){ outcome('note','I couldn\u2019t find a bill matching \u201c' + esc(t2) + '\u201d.'); return; }
+    var target = hits[0];
+    outcome('ask','<div class="k">Just checking \u2014 this can\u2019t be undone by accident</div>'
+      + '<div>Remove <b>' + esc(target.name) + '</b> ' + money(target.amount) + ', ' + FREQ_LABEL[target.freq] + '?</div>'
+      + '<div class="row"><button class="btn small" style="background:var(--red);color:#2a0b0f" onclick="doRemove(\'' + target.id + '\')">Yes, remove it</button>'
+      + '<button class="btn ghost small" onclick="clearOutcome()">Keep it</button></div>');
+    return;
+  }
+  if(intent.id === 'import'){
+    outcome('open','<div class="k">Check a statement</div>Look for bills you forgot. The file is read inside the page and never uploaded.'
+      + '<div class="row"><button class="btn small" onclick="focusPaste()">Open the drop box</button></div>');
+    return;
+  }
+  if(intent.id === 'export'){ exportCSV(); outcome('done','<b>Saved a CSV of the calendar.</b> Open it in Numbers, Excel or Google Sheets.'); return; }
+  if(intent.id === 'clear'){
+    outcome('ask','<div class="k">This erases everything in this browser</div>'
+      + '<div>All bills, income and the balance. Exports you already saved are untouched.</div>'
+      + '<div class="row"><button class="btn small" style="background:var(--red);color:#2a0b0f" onclick="doWipe()">Yes, start over</button>'
+      + '<button class="btn ghost small" onclick="clearOutcome()">Keep my data</button></div>');
+    return;
+  }
+  suggest(raw);
+}
+
+function suggest(text){
+  var near = nearestIntents(text);
+  outcome('note','<div class="k">I didn\u2019t catch that \u2014 did you mean one of these?</div>'
+    + '<div class="row" style="margin-top:4px">'
+    + near.map(function(i){ return '<button class="chip" onclick="fill(\'' + SUGGEST[i.id] + '\')">' + SUGGEST[i.id] + '</button>'; }).join('')
+    + '</div>');
+}
+function commitAdd(p){
+  if(p.freq === 'weekly' || p.freq === 'fortnightly'){
+    addItem({ name:p.name, amount:p.amount, dir:p.dir, freq:p.freq, anchorDate:iso(nextOccurrenceWeekday(p.wd != null ? p.wd : 5)) });
+  } else {
+    addItem({ name:p.name, amount:p.amount, dir:p.dir, freq:p.freq, day:p.day });
+  }
+  var it = S.items[S.items.length-1];
+  render(); save();
+  outcome('done','<b>\u2713 ' + esc(it.name) + ' ' + money(it.amount) + ', ' + FREQ_LABEL[it.freq] + '</b>'
+    + '<div class="row"><button class="btn ghost small" onclick="doRemove(\'' + it.id + '\')">undo</button>'
+    + '<span style="color:var(--dim);font-size:12.5px;align-self:center">added to the calendar</span></div>');
+}
+function undoBalance(v){ S.balance = v; S.balanceSet = true; render(); save(); outcome('done','<b>Balance back to ' + money(v) + '.</b>'); }
+function doRemove(id){ removeItem(id); render(); save(); outcome('done','<b>Removed.</b> The calendar is updated.'); }
+function doWipe(){ S.items = []; S.balance = 0; S.balanceSet = false; S.rawRows = null; selDay = null; render(); save(); clearOutcome();
+  $('impOut').innerHTML = ''; $('paste').value = ''; }
+function fill(text){ $('cmd').value = text; $('cmd').focus(); }
+function focusPaste(){ var p = $('paste'); p.scrollIntoView({block:'center'}); p.focus(); }
+
+/* ===== example ===== */
+function loadExample(){
+  S.items = []; S.balance = 312.40; S.balanceSet = true; S.horizon = 30; selDay = null;
+  var nowM = new Date().getFullYear()*12 + new Date().getMonth();
+  addItem({ name:'Rent',          amount:1400, dir:'out', freq:'monthly',   day:1,  anchorMonthIdx:nowM });
+  addItem({ name:'Car loan',      amount:410,  dir:'out', freq:'monthly',   day:5,  anchorMonthIdx:nowM });
+  addItem({ name:'Power + water', amount:180,  dir:'out', freq:'monthly',   day:15, anchorMonthIdx:nowM });
+  addItem({ name:'Phone',         amount:96,   dir:'out', freq:'monthly',   day:17, anchorMonthIdx:nowM });
+  addItem({ name:'Streaming',     amount:18,   dir:'out', freq:'monthly',   day:22, anchorMonthIdx:nowM });
+  addItem({ name:'Car insurance', amount:184,  dir:'out', freq:'quarterly', day:14, anchorMonthIdx:nowM });
+  addItem({ name:'Registration',  amount:640,  dir:'out', freq:'yearly',    day:28, anchorMonthIdx:nowM });
+  addItem({ name:'Pay',           amount:1180, dir:'in',  freq:'fortnightly', wd:5, anchorDate:iso(nextOccurrenceWeekday(5)) });
+  save();
+}
+
+/* ===== CSV in ===== */
+function parseCSV(text){
+  var rows = [], row = [], field = '', q = false;
+  for(var i=0;i<text.length;i++){
+    var c = text[i];
+    if(q){
+      if(c === '"'){ if(text[i+1] === '"'){ field += '"'; i++; } else q = false; }
+      else field += c;
+    } else {
+      if(c === '"') q = true;
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+      else if(c !== '\r') field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(function(r){ return r.some(function(x){ return String(x).trim() !== ''; }); });
+}
+function moneyVal(s){
+  s = String(s).trim(); if(!s) return NaN;
+  var neg = /^\(.*\)$/.test(s) || /^-/.test(s);
+  var m = s.replace(/[()$,\s]/g,'').match(/-?\d+(?:\.\d{1,2})?/);
+  if(!m) return NaN;
+  var v = parseFloat(m[0]); if(neg) v = -Math.abs(v);
+  return v;
+}
+function parseDate(s){
+  s = String(s).trim();
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m){ var y = +m[3]; if(y < 100) y += 2000; return new Date(y, +m[1]-1, +m[2]); }
+  var d = new Date(s); return isNaN(d.getTime()) ? null : startOfDay(d);
+}
+function normDesc(s){
+  return String(s).toLowerCase().replace(/\d+/g,'#').replace(/[^a-z# ]/g,' ').replace(/\s+/g,' ').trim()
+    .split(' ').filter(Boolean).slice(0,3).join(' ');
+}
+function classifyGap(g){
+  if(g >= 6 && g <= 8) return 'weekly';
+  if(g >= 12 && g <= 16) return 'fortnightly';
+  if(g >= 26 && g <= 33) return 'monthly';
+  if(g >= 80 && g <= 100) return 'quarterly';
+  if(g >= 170 && g <= 195) return 'biannual';
+  if(g >= 350 && g <= 380) return 'yearly';
+  return null;
+}
+function findRepeats(rows){
+  var hi = -1;
+  for(var i=0;i<rows.length;i++){ if(rows[i].some(function(c){ return /date/i.test(c); })){ hi = i; break; } }
+  var cols = { date:-1, desc:-1, amount:-1, debit:-1, credit:-1 };
+  if(hi > -1){
+    rows[hi].forEach(function(c,idx){
+      var h = String(c).toLowerCase();
+      if(/date/.test(h) && cols.date < 0) cols.date = idx;
+      if(/desc|payee|name|memo|detail|transaction|narration/.test(h) && cols.desc < 0) cols.desc = idx;
+      if(/amount|value/.test(h) && cols.amount < 0) cols.amount = idx;
+      if(/debit|withdraw|paid out/.test(h) && cols.debit < 0) cols.debit = idx;
+      if(/credit|deposit|paid in/.test(h) && cols.credit < 0) cols.credit = idx;
+    });
+  }
+  var body = hi > -1 ? rows.slice(hi+1) : rows;
+  if(cols.date < 0) cols.date = 0;
+  if(cols.desc < 0) cols.desc = (body[0] && body[0].length > 1) ? 1 : 0;
+  var groups = {};
+  for(var r=0;r<body.length;r++){
+    var row = body[r];
+    var dt = parseDate(row[cols.date]); if(!dt) continue;
+    var desc = String(row[cols.desc] == null ? '' : row[cols.desc]);
+    var v;
+    if(cols.amount > -1) v = moneyVal(row[cols.amount]);
+    else if(cols.debit > -1 || cols.credit > -1){
+      var dv = cols.debit > -1 ? moneyVal(row[cols.debit]) : NaN;
+      var cv = cols.credit > -1 ? moneyVal(row[cols.credit]) : NaN;
+      v = (!isNaN(dv) && dv !== 0) ? -Math.abs(dv) : (!isNaN(cv) ? Math.abs(cv) : NaN);
+    } else v = moneyVal(row[row.length-1]);
+    if(isNaN(v) || v === 0) continue;
+    var key = normDesc(desc) || 'unknown';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push({ date:dt, desc:desc.trim(), v:v });
+  }
+  var cands = [];
+  for(var k in groups){
+    var g = groups[k]; if(g.length < 2) continue;
+    g.sort(function(a,b){ return a.date - b.date; });
+    var gaps = [];
+    for(var q=1;q<g.length;q++) gaps.push(daysBetween(g[q-1].date, g[q].date));
+    gaps.sort(function(a,b){ return a-b; });
+    var med = gaps[Math.floor(gaps.length/2)];
+    var freq = classifyGap(med); if(!freq) continue;
+    var amts = g.map(function(x){ return Math.abs(x.v); }).sort(function(a,b){ return a-b; });
+    var amount = Math.round(amts[Math.floor(amts.length/2)] * 100) / 100;
+    var outs = g.filter(function(x){ return x.v < 0; }).length;
+    var dir = outs >= (g.length - outs) ? 'out' : 'in';
+    var last = g[g.length-1].date;
+    cands.push({ name:g[0].desc || 'Bill', amount:amount, dir:dir, freq:freq,
+                 count:g.length, last:last, day:last.getDate(), gap:med });
+  }
+  cands.sort(function(a,b){ return b.count - a.count; });
+  return cands.slice(0,12);
+}
+function renderCands(cands, total){
+  var el = $('impOut');
+  if(!cands.length){
+    el.innerHTML = '<div class="warn">I read ' + total + ' rows but found no repeating pattern \u2014 that usually means the '
+      + 'history is too short. Quarterly and twice-a-year bills need 6\u201312 months before they show up.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="lbl">Found ' + cands.length + ' repeating payment' + (cands.length>1?'s':'')
+    + ' in ' + total + ' rows</div>'
+    + cands.map(function(c,i){
+        return '<div class="cand"><div class="cn"><b>' + esc(c.name) + '</b> ' + money(c.amount)
+          + '<small>' + (c.dir==='in'?'money in':'bill') + ' \u00b7 ' + FREQ_LABEL[c.freq] + ' \u00b7 seen ' + c.count
+          + ' times, last ' + c.last.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '</small></div>'
+          + '<button class="btn ghost small" data-take="' + i + '">Add</button></div>';
+      }).join('')
+    + '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
+    + '<button class="btn ghost small" id="takeAll">Add all of them</button>'
+    + '<button class="btn small" style="background:var(--red);color:#2a0b0f" id="forget">Delete the statement now</button></div>';
+  var bs = el.querySelectorAll('[data-take]');
+  for(var i=0;i<bs.length;i++){
+    bs[i].onclick = function(){
+      takeCand(cands[+this.getAttribute('data-take')]);
+      this.disabled = true; this.textContent = 'Added';
+    };
+  }
+  $('takeAll').onclick = function(){
+    cands.forEach(takeCand);
+    var b2 = el.querySelectorAll('[data-take]');
+    for(var j=0;j<b2.length;j++){ b2[j].disabled = true; b2[j].textContent = 'Added'; }
+  };
+  $('forget').onclick = deleteFile;
+}
+function takeCand(c){
+  if(c.dir === 'in' && (c.freq === 'weekly' || c.freq === 'fortnightly')){
+    addItem({ name:c.name, amount:c.amount, dir:c.dir, freq:c.freq, anchorDate:iso(c.last) });
+  } else {
+    addItem({ name:c.name, amount:c.amount, dir:c.dir, freq:c.freq,
+              day:(c.day >= 1 && c.day <= 31 ? c.day : 1),
+              anchorMonthIdx:c.last.getFullYear()*12 + c.last.getMonth() });
+  }
+  render(); save();
+}
+function deleteFile(){
+  S.rawRows = null; $('paste').value = '';
+  $('impOut').innerHTML = '<div class="card done" style="margin-top:10px;background:var(--green-d);border:1px solid rgba(52,211,153,.3);border-radius:11px;padding:12px">'
+    + '<b>The statement is gone.</b> I kept only the bills you accepted \u2014 ' + S.items.length
+    + ' of them. The rows of your transactions are not stored anywhere.</div>';
+}
+function doImport(){
+  var text = $('paste').value.trim();
+  if(!text){ $('impOut').innerHTML = '<div class="warn">Nothing to read yet \u2014 drop a file or paste some rows.</div>'; return; }
+  var rows = parseCSV(text);
+  S.rawRows = rows;
+  renderCands(findRepeats(rows), rows.length);
+}
+function readFile(f){
+  var r = new FileReader();
+  r.onload = function(){ $('paste').value = String(r.result).slice(0, 200000); doImport(); };
+  r.readAsText(f);
+}
+
+/* ===== export ===== */
+function download(name, text, type){
+  var blob = new Blob([text], { type: type || 'text/csv' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function exportCSV(){
+  var days = project();
+  var out = 'date,description,amount,balance\n';
+  out += iso(new Date()) + ',Opening balance,,' + S.balance.toFixed(2) + '\n';
+  for(var i=0;i<days.length;i++){
+    var d = days[i];
+    if(!d.events.length) out += d.key + ',,,' + d.balance.toFixed(2) + '\n';
+    else for(var j=0;j<d.events.length;j++){
+      var e = d.events[j];
+      out += d.key + ',"' + e.name.replace(/"/g,'""') + '",'
+        + (e.dir === 'in' ? e.amount : -e.amount).toFixed(2) + ',' + d.balance.toFixed(2) + '\n';
+    }
+  }
+  download('capital-cashflow.csv', out);
+}
+function exportJSON(){
+  download('capital-backup.json', JSON.stringify({ balance:S.balance, balanceSet:S.balanceSet, items:S.items, threshold:S.threshold }, null, 2), 'application/json');
+}
+
+/* ===== wiring ===== */
+var CHIPS = ['Add a bill','Set your balance','When am I short?','Look 6 months out','Add your pay','What can I say?','Check a statement','Export'];
+$('chips').innerHTML = CHIPS.map(function(c){ return '<button class="chip" data-chip="' + c + '">' + c + '</button>'; }).join('');
+$('chips').addEventListener('click', function(e){
+  var c = e.target && e.target.getAttribute && e.target.getAttribute('data-chip'); if(!c) return;
+  var map = { 'Add a bill':'add a bill', 'Set your balance':'balance is ', 'When am I short?':'when am I short',
+    'Look 6 months out':'look 6 months out', 'Add your pay':'add my pay', 'What can I say?':'what can I say',
+    'Check a statement':'check a statement', 'Export':'export' };
+  var txt = map[c];
+  if(txt === 'balance is ' || txt === 'add a bill' || txt === 'add my pay'){ fill(txt); }
+  else { $('cmd').value = txt; go(); }
+});
+function go(){ var v = $('cmd').value; if(!v.trim()){ $('cmd').focus(); return; } run(v); $('cmd').value = ''; }
+$('go').onclick = go;
+$('cmd').addEventListener('keydown', function(e){ if(e.key === 'Enter') go(); });
+$('bal').addEventListener('change', function(){
+  var v = parseFloat(String($('bal').value).replace(/[^0-9.\-]/g,''));
+  if(!isNaN(v)){ S.balance = v; S.balanceSet = true; } else { S.balance = 0; S.balanceSet = false; }
+  selDay = null; render(); save();
+});
+$('f_add').onclick = function(){
+  var name = $('f_name').value.trim();
+  var amt = parseFloat(String($('f_amt').value).replace(/[^0-9.]/g,''));
+  if(!name || isNaN(amt)){ outcome('err','A name and an amount, please.'); return; }
+  var dir = $('f_dir').value, freq = $('f_freq').value;
+  if(freq === 'weekly' || freq === 'fortnightly'){
+    addItem({ name:name, amount:amt, dir:dir, freq:freq, anchorDate:iso(nextOccurrenceWeekday(5)) });
+  } else {
+    var day = parseInt($('f_day').value,10); if(isNaN(day) || day < 1 || day > 31) day = 1;
+    addItem({ name:name, amount:amt, dir:dir, freq:freq, day:day });
+  }
+  $('f_name').value = ''; $('f_amt').value = ''; $('f_day').value = '';
+  render(); save(); outcome('done','<b>Added ' + esc(name) + '.</b>');
+};
+$('items').addEventListener('click', function(e){
+  var id = e.target && e.target.getAttribute && e.target.getAttribute('data-del'); if(!id) return;
+  outcome('ask','<div class="k">Just checking</div><div>Remove this bill?</div>'
+    + '<div class="row"><button class="btn small" style="background:var(--red);color:#2a0b0f" onclick="doRemove(\'' + id + '\')">Yes, remove</button>'
+    + '<button class="btn ghost small" onclick="clearOutcome()">Keep it</button></div>');
+});
+$('cal').addEventListener('click', function(e){
+  var t = e.target.closest ? e.target.closest('[data-day]') : null;
+  if(!t) return;
+  var k = t.getAttribute('data-day');
+  selDay = (selDay === k ? null : k);
+  renderCal(project());
+});
+var vbs = document.querySelectorAll('.vs');
+for(var vi=0; vi<vbs.length; vi++){
+  vbs[vi].onclick = function(){ S.horizon = +this.dataset.h; selDay = null; render(); save(); };
+}
+$('example').onclick = function(){ loadExample(); render(); outcome('done','<b>An example household is loaded.</b> Look at the calendar \u2014 the red days are the point.'); };
+$('csv').onclick = function(){ exportCSV(); outcome('done','<b>Saved capital-cashflow.csv.</b>'); };
+$('json').onclick = function(){ exportJSON(); };
+$('print').onclick = function(){ window.print(); };
+$('wipe').onclick = function(){
+  outcome('ask','<div class="k">This erases everything in this browser</div><div>All bills, income and the balance.</div>'
+    + '<div class="row"><button class="btn small" style="background:var(--red);color:#2a0b0f" onclick="doWipe()">Yes, start over</button>'
+    + '<button class="btn ghost small" onclick="clearOutcome()">Keep my data</button></div>');
+};
+$('doImport').onclick = doImport;
+$('file').onchange = function(e){ if(e.target.files[0]) readFile(e.target.files[0]); };
+var drop = $('drop');
+['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+drop.addEventListener('drop', function(e){ var f = e.dataTransfer.files[0]; if(f) readFile(f); });
+$('paste').addEventListener('dragover', function(e){ e.preventDefault(); });
+$('paste').addEventListener('drop', function(e){ e.preventDefault(); var f = e.dataTransfer.files[0]; if(f) readFile(f); });
+
+/* voice — the browser's own, if it has one */
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+$('mic').onclick = function(){
+  if(!SR){ outcome('note','This browser can\u2019t take voice input. Typing works exactly the same.'); return; }
+  var r = new SR(); r.lang = 'en-US'; r.interimResults = false; r.maxAlternatives = 1;
+  $('mic').classList.add('on');
+  r.onresult = function(e){ var t = e.results[0][0].transcript; $('cmd').value = t; go(); };
+  r.onerror = function(){ outcome('note','I didn\u2019t catch that. Try again, or type it.'); };
+  r.onend = function(){ $('mic').classList.remove('on'); };
+  r.start();
+};
+
+load();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command Bar — swim demo</title>
+<style>
+  :root{
+    --bg:#0e1210; --panel:#161c19; --line:#26302b; --ink:#e8efe9;
+    --dim:#8fa398; --green:#5fd39a; --amber:#e0a94a; --red:#e07a6a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:18px;}
+  .wrap{max-width:720px;margin:0 auto}
+  h1{font-size:19px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:16px}
+  .rolebar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .rolebar label{color:var(--dim);font-size:13px}
+  select,button,input{font:inherit}
+  select{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:9px 11px}
+  .cmdrow{display:flex;gap:8px;margin-bottom:10px}
+  #cmd{flex:1;background:var(--panel);color:var(--ink);border:1px solid var(--line);
+    border-radius:12px;padding:14px 14px;font-size:16px}
+  #cmd:focus{outline:none;border-color:var(--green)}
+  .gobtn{background:var(--green);color:#062015;border:0;border-radius:12px;
+    padding:0 18px;font-weight:650;cursor:pointer}
+  .mic{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+    border-radius:12px;padding:0 14px;cursor:pointer;font-size:18px}
+  .mic.live{border-color:var(--red);color:var(--red)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 18px}
+  .chip{background:#1b2320;border:1px solid var(--line);color:var(--dim);
+    border-radius:999px;padding:6px 11px;font-size:13px;cursor:pointer}
+  .chip:hover{color:var(--ink);border-color:var(--green)}
+  .card{border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--panel)}
+  .card.done{border-color:#2f6b4e}
+  .card.ask{border-color:#7a5f24}
+  .card.no{border-color:#7a3730}
+  .tag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .big{font-size:20px;font-weight:650;margin:6px 0 2px}
+  .why{color:var(--dim);font-size:13px}
+  .fields{display:grid;gap:10px;margin:14px 0 0}
+  .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:3px}
+  .field input,.field select{width:100%;background:#0f1513;color:var(--ink);
+    border:1px solid var(--line);border-radius:10px;padding:10px 11px}
+  .actions{display:flex;gap:8px;margin-top:14px}
+  .actions button{border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+  .primary{background:var(--green);color:#062015}
+  .ghost{background:transparent;color:var(--dim);border:1px solid var(--line)!important}
+  .log{margin-top:22px;border-top:1px solid var(--line);padding-top:12px}
+  .log h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .entry{font-size:13px;color:var(--dim);padding:5px 0;border-bottom:1px solid #1b2320}
+  .entry b{color:var(--ink);font-weight:600}
+  .foot{color:#5f6f66;font-size:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Swim school — command bar</h1>
+  <div class="sub">Type what you want. It does it, or opens the little window. Nothing to navigate.</div>
+
+  <div class="rolebar">
+    <label for="role">Signed in as:</label>
+    <select id="role">
+      <option value="owner">Owner (full access)</option>
+      <option value="frontdesk" selected>Front desk</option>
+      <option value="instructor">Instructor (on deck)</option>
+    </select>
+  </div>
+
+  <div class="cmdrow">
+    <input id="cmd" placeholder="e.g. check in Emma · add Noah to waitlist · who's next?" autocomplete="off">
+    <button class="mic" id="mic" title="Speak">🎤</button>
+    <button class="gobtn" id="go">Go</button>
+  </div>
+  <div class="chips" id="chips"></div>
+
+  <div id="out"></div>
+
+  <div class="log">
+    <h2>What just happened</h2>
+    <div id="log"><div class="entry">Nothing yet — type a command above.</div></div>
+  </div>
+
+  <div class="foot">
+    Demo only · the AI never decides who's allowed — the role check does. A misheard command is annoying, never dangerous.
+  </div>
+</div>
+
+<script>
+// ---- toy data -------------------------------------------------------------
+const SWIMMERS = ["Emma","Noah","Zara","Liam","Ava","Milo","Ruby"];
+const LESSONS  = [
+  {t:"15:50", who:"Emma"},   {t:"16:00", who:"Liam"},
+  {t:"16:10", who:"Zara"},   {t:"16:20", who:"Ava"},
+  {t:"16:30", who:"Milo"},
+];
+let WAITLIST = ["Noah","Ruby","Ava"];
+
+// ---- intent catalogue -----------------------------------------------------
+// role = who MAY do it. kind: 'do' = nothing to fill in, 'open' = little window.
+const INTENTS = [
+  { id:"checkin", words:["check in","checked in","clock in","arrived","here"],
+    label:"Check a swimmer in", role:["owner","frontdesk","instructor"], kind:"do",
+    needs:["swimmer"] },
+  { id:"nextwait", words:["next","who","waitlist","waiting","queue","line"],
+    label:"Who's next on the waitlist", role:["owner","frontdesk","instructor"], kind:"do" },
+  { id:"addwait", words:["add","waitlist","put","waiting","join"],
+    label:"Add a swimmer to the waitlist", role:["owner","frontdesk"], kind:"open",
+    needs:["swimmer"] },
+  { id:"schedule", words:["schedule","calendar","lessons"],
+    weak:["today","day","show","open","my"],
+    label:"Open today's schedule", role:["owner","frontdesk","instructor"], kind:"open" },
+  { id:"cancel", words:["cancel","drop","remove","free up"],
+    label:"Cancel a lesson (frees the spot)", role:["owner","frontdesk"], kind:"open",
+    needs:["swimmer"] },
+  { id:"takings", words:["money","takings","revenue","paid","income","sales","invoice"],
+    label:"See today's takings", role:["owner"], kind:"do" },
+  { id:"fill", words:["fill","offer","spot","opening","gap"],
+    label:"Offer a freed spot to the next family", role:["owner","frontdesk"], kind:"open" },
+];
+
+const SARCASTIC_SWIM_NOTE = ""; // placeholder
+
+// ---- tiny "understanding" layer ------------------------------------------
+// keyword scoring only — no API call. Real build swaps this for a model.
+function findSwimmer(text){
+  const t = text.toLowerCase();
+  return SWIMMERS.find(s => t.includes(s.toLowerCase())) || null;
+}
+function understand(text){
+  const t = " " + text.toLowerCase() + " ";
+  let best = null, bestScore = 0;
+  for (const it of INTENTS){
+    let score = 0;
+    // longer, more specific words count for more, so "takings" beats a stray "today"
+    for (const w of it.words){ if (t.includes(w)) score += w.length; }
+    for (const w of (it.weak||[])){ if (t.includes(w)) score += 1; }
+    if (score > bestScore){ bestScore = score; best = it; }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+// ---- rendering ------------------------------------------------------------
+const out  = document.getElementById("out");
+const logEl= document.getElementById("log");
+const roleEl=document.getElementById("role");
+let logged = false;
+
+function log(msg){
+  if (!logged){ logEl.innerHTML=""; logged=true; }
+  const d=document.createElement("div");
+  d.className="entry";
+  d.innerHTML = `<b>${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</b> · ${msg}`;
+  logEl.prepend(d);
+}
+function say(html){ out.innerHTML = html; }
+function esc(s){ return (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function denied(intent){
+  const who = intent.role.map(r => r==="frontdesk"?"front desk":r).join(" / ");
+  say(`<div class="card no">
+    <div class="tag">Not your door</div>
+    <div class="big">That one's for the ${who}.</div>
+    <div class="why">You're signed in as <b>${roleEl.options[roleEl.selectedIndex].text}</b>.
+    I understood you fine — I'm just not allowed to open it for you. Ask the ${who}.</div>
+  </div>`);
+  log(`“${roleEl.options[roleEl.selectedIndex].text}” asked → <b>${intent.label}</b> → refused (role).`);
+}
+
+function doIntent(intent, swimmer){
+  if (intent.id==="checkin"){
+    const who = swimmer || "them";
+    say(`<div class="card done">
+      <div class="tag">Done</div>
+      <div class="big">${esc(who)} checked in ✓</div>
+      <div class="why">Logged at ${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}. Nothing else needed.</div>
+    </div>`);
+    log(`Checked in <b>${esc(who)}</b>.`);
+  } else if (intent.id==="nextwait"){
+    const n = WAITLIST[0] || "nobody";
+    say(`<div class="card done">
+      <div class="tag">Waitlist</div>
+      <div class="big">${esc(n)} is next</div>
+      <div class="why">Then ${WAITLIST.slice(1).map(esc).join(", ") || "—"}.</div>
+      <div class="actions"><button class="primary" onclick="offerNext()">Offer the next free spot to ${esc(n)}</button></div>
+    </div>`);
+    log(`Read the waitlist — <b>${esc(n)}</b> is first.`);
+  } else if (intent.id==="takings"){
+    say(`<div class="card done">
+      <div class="tag">Today</div>
+      <div class="big">$684 taken</div>
+      <div class="why">17 lessons · 3 spot offers pending.</div>
+    </div>`);
+    log(`Opened today's takings.`);
+  }
+}
+
+function openIntent(intent, swimmer){
+  if (intent.id==="addwait"){
+    say(`<div class="card ask">
+      <div class="tag">Almost — check these</div>
+      <div class="big">Add to the waitlist</div>
+      <div class="fields">
+        <div class="field"><label>Swimmer</label><input id="f_who" value="${esc(swimmer||"")}" placeholder="name"></div>
+        <div class="field"><label>Preferred time</label>
+          <select id="f_time"><option>any</option><option>15:50–16:30</option><option>after 16:30</option></select></div>
+        <div class="field"><label>Note</label><input id="f_note" placeholder="e.g. sibling with Liam"></div>
+      </div>
+      <div class="actions">
+        <button class="primary" onclick="saveWait()">Put on waitlist</button>
+        <button class="ghost" onclick="say('')">Never mind</button>
+      </div>
+    </div>`);
+    log(`Opened the add-to-waitlist window${swimmer?` for <b>${esc(swimmer)}</b>`:""}.`);
+  } else if (intent.id==="schedule"){
+    const rows = LESSONS.map(l => `<div class="field"><label>${l.t}</label><input value="${esc(l.who)}" readonly></div>`).join("");
+    say(`<div class="card ask">
+      <div class="tag">Today's schedule</div>
+      <div class="big">4 lessons · 1 gap at 16:40</div>
+      <div class="fields">${rows}</div>
+      <div class="actions"><button class="primary" onclick="say('')">Close</button></div>
+    </div>`);
+    log(`Opened today's schedule.`);
+  } else if (intent.id==="cancel"){
+    const who = swimmer || "that swimmer";
+    say(`<div class="card ask">
+      <div class="tag">Confirm — this frees a spot</div>
+      <div class="big">Cancel ${esc(who)}'s 16:10?</div>
+      <div class="why">Zara's spot will be offered to <b>${esc(WAITLIST[0]||"nobody")}</b> automatically.</div>
+      <div class="actions">
+        <button class="primary" onclick="cancelLesson('${esc(who)}')">Yes, cancel and offer it</button>
+        <button class="ghost" onclick="say('')">Keep it</button>
+      </div>
+    </div>`);
+    log(`Opened the cancel window for <b>${esc(who)}</b>.`);
+  } else if (intent.id==="fill"){
+    say(`<div class="card ask">
+      <div class="tag">Freed spot at 16:10</div>
+      <div class="big">Offer it to ${esc(WAITLIST[0]||"nobody")}?</div>
+      <div class="why">They get a text with 2 hours to claim. If they pass, it rolls to the next family on its own.</div>
+      <div class="actions">
+        <button class="primary" onclick="offerNext()">Send the offer</button>
+        <button class="ghost" onclick="say('')">Not now</button>
+      </div>
+    </div>`);
+    log(`Opened the fill-a-spot window.`);
+  }
+}
+
+// writable actions the buttons call — same gate as the command
+function offerNext(){
+  const n = WAITLIST.shift() || "them";
+  say(`<div class="card done"><div class="tag">Sent</div>
+    <div class="big">${esc(n)} offered 16:10</div>
+    <div class="why">Text sent. 2-hour window. Next in line: ${esc(WAITLIST[0]||"—")}.</div></div>`);
+  log(`Offered the freed spot to <b>${esc(n)}</b>.`);
+}
+function saveWait(){
+  const who = (document.getElementById("f_who")||{}).value || "them";
+  if (who && !WAITLIST.includes(who)) WAITLIST.push(who);
+  say(`<div class="card done"><div class="tag">Done</div>
+    <div class="big">${esc(who)} is on the waitlist</div>
+    <div class="why">Position ${WAITLIST.indexOf(who)+1} of ${WAITLIST.length}.</div></div>`);
+  log(`Added <b>${esc(who)}</b> to the waitlist.`);
+}
+function cancelLesson(who){
+  WAITLIST.unshift("Zara");
+  say(`<div class="card done"><div class="tag">Done</div>
+    <div class="big">${esc(who)}'s 16:10 cancelled</div>
+    <div class="why">Spot offered to Zara. You'll see it if she doesn't claim in 2h.</div></div>`);
+  log(`Cancelled <b>${esc(who)}</b> and offered the spot.`);
+}
+
+// ---- the fallback: never a dead end --------------------------------------
+function suggestions(text){
+  out.innerHTML = `<div class="card ask">
+    <div class="tag">Not sure — did you mean</div>
+    <div class="big">Three things I can do</div>
+    <div class="why">Tap one, or say it another way.</div>
+  </div>`;
+  const box = document.createElement("div");
+  box.className = "chips";
+  box.style.marginTop = "10px";
+  const picks = ["check in Emma","who's next on the waitlist","add Noah to the waitlist"];
+  for (const p of picks){
+    const c = document.createElement("div");
+    c.className = "chip"; c.textContent = p;
+    c.onclick = () => { document.getElementById("cmd").value = p; run(p); };
+    box.appendChild(c);
+  }
+  out.querySelector(".card").appendChild(box);
+  log(`Didn't understand “<b>${esc(text)}</b>” — showed 3 nearest instead of a dead end.`);
+}
+
+// ---- the run loop ---------------------------------------------------------
+function run(text){
+  text = (text||"").trim();
+  if (!text) return;
+  const intent = understand(text);
+  const swimmer = findSwimmer(text);
+  const role = roleEl.value;
+
+  if (!intent){ suggestions(text); return; }
+
+  if (!intent.role.includes(role)){ denied(intent); return; }
+
+  if (intent.needs && intent.needs.includes("swimmer") && !swimmer && intent.kind==="do" ){
+    // read-ish intent still fine without a name
+  }
+  if (intent.kind === "do") doIntent(intent, swimmer);
+  else openIntent(intent, swimmer);
+}
+
+document.getElementById("go").onclick = () => run(document.getElementById("cmd").value);
+document.getElementById("cmd").addEventListener("keydown", e => {
+  if (e.key === "Enter") run(e.target.value);
+});
+
+// ---- example chips --------------------------------------------------------
+const EXAMPLES = ["check in Emma","who's next on the waitlist","add Noah to the waitlist",
+  "show today's schedule","cancel Zara's 16:10","today's takings"];
+(function seedChips(){
+  const box = document.getElementById("chips");
+  for (const e of EXAMPLES){
+    const c = document.createElement("div");
+    c.className = "chip"; c.textContent = e;
+    c.onclick = () => { document.getElementById("cmd").value = e; run(e); };
+    box.appendChild(c);
+  }
+})();
+
+// ---- voice (optional, graceful) ------------------------------------------
+const micBtn = document.getElementById("mic");
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR){ micBtn.disabled = true; micBtn.title = "Voice not available in this browser"; }
+else {
+  const rec = new SR();
+  rec.lang = "en-US"; rec.interimResults = false;
+  micBtn.onclick = () => { try { rec.start(); micBtn.classList.add("live"); } catch(e){} };
+  rec.onresult = (e) => {
+    const t = e.results[0][0].transcript;
+    document.getElementById("cmd").value = t;
+    run(t);
+  };
+  rec.onend = () => micBtn.classList.remove("live");
+  rec.onerror = () => micBtn.classList.remove("live");
+}
+</script>
+</body>
+</html>
