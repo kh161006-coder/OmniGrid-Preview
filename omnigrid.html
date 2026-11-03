@@ -1701,9 +1701,12 @@ function homeLane(){
 }
 
 /* ---------- administrative shortcut: Manager and Super user only, on every page except the one it points to ---------- */
-var GUARD_ROLES={owner:1,manager:1};   /* this app's two admin roles; there is no separate business-admin role */
+/* The app's two supervisor tiers: Manager and Super user (whose internal role is 'owner').
+   ONE definition - every "may this person supervise?" test goes through here. This idea used to
+   be written four different ways, and one of them named an 'admin' role that exists nowhere. */
+function canSupervise(){var u=me();return !!(u&&(u.role==='owner'||u.role==='manager'))}
 function adminBanner(){
-  var u=me();if(!u||!GUARD_ROLES[u.role]||ui.page==='booking')return '';
+  var u=me();if(!u||!canSupervise()||ui.page==='booking')return '';
   return '<div class="admin-intercept-action-row fade-in" role="region" aria-label="Administrative shortcut"><div class="intercept-meta-message"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/></svg><p><strong>Administrative session:</strong> signed in as '+ROLEWORD[u.role]+' for '+esc(B().name)+'. Booking limits and payment holds are set in Booking and pricing.</p></div><button class="btn-intercept-redirect-heavy" data-a="nav" data-v="booking">Open service limits</button></div>';
 }
 
@@ -2297,7 +2300,7 @@ function calSheets(){return pwarnHtml()+dmodalHtml()+(ui.cadd?calAddSheet():ui.c
 /* ---- Demand blocks: "this window needs N people of this role", independent of any person or weekly rule ----
    Stored per business (B().demandBlocks) so they are saved and never cross from one business to another; ui.demandBlocks is the same array. Whole hours only.
    Each clock hour of a block is counted on its own: covered when enough shifts of that role cover the whole hour, otherwise a dashed "Needs X" drop target. */
-function canDemand(){return ['owner','manager','admin'].indexOf(me().role)>-1}
+function canDemand(){return canSupervise()}
 Object.defineProperty(ui,'demandBlocks',{configurable:true,enumerable:false,get:function(){var b=B();if(!b)return [];return b.demandBlocks||(b.demandBlocks=[])}});
 function demandOn(date){return ui.demandBlocks.filter(function(x){return x.date===date&&x.loc===ui.loc})}
 function demandHave(date,h,cid){var n=0;shiftsOn(date,ui.loc).forEach(function(x){var s=staffOf(x.sid);if(s&&s.active&&(x.cls||B().classes[0].id)===cid&&x.sm<=h*60&&x.em>=(h+1)*60)n++});return n}
@@ -2926,8 +2929,7 @@ function asBanner(){
   return '<div class="asbar" role="status"><span>Viewing as <b>'+esc(u.name)+'</b> ('+esc(ROLEWORD[u.role])+'). What you do here is saved as them.</span><button class="btn sm" data-a="viewas" data-v="">Back to super user</button></div>';
 }
 function shell(inner){
-  var u=me(),b=B(),nav=navFor(u.role),alerts=(u.role==='owner'||u.role==='manager')?alertsCount():0;
-  var sup=u.role==='owner'||u.role==='manager';   /* supervisors get the three-panel workspace: nav | AI rail + page | This Week */
+  var u=me(),b=B(),nav=navFor(u.role),sup=canSupervise(),alerts=sup?alertsCount():0;   /* supervisors get the three-panel workspace: nav | AI rail + page | This Week */
   return '<div class="shell'+(sup?' wide':'')+'" data-portal="'+u.role+'"><aside class="side"><div class="sbrand">'+MARK+'OmniGrid<button class="btn sm mobout" style="margin-left:auto" data-a="logout">Sign out</button></div>'+
   '<div class="biz"><span class="lg">'+esc(b.name[0])+'</span><div style="min-width:0"><b>'+esc(b.name)+'</b><span>Code: '+esc(b.slug)+'</span></div></div>'+
   viewAsBox()+'<div class="ptag" style="padding:0 2px">'+PORTAL[u.role]+'</div>'+
