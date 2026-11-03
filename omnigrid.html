@@ -1244,7 +1244,7 @@ function svcVar(s,min){
 }
 /* who may change booking rules: managers and the super user (internal role owner), never staff or customers. The business is always the signed-in one: B() reads only that business's data. */
 /* ---- the page's copy of the role guard (same tiers and the same refusal as backend src/guards/roleGuard.js) ---- */
-var TIER_ROLE={Super_User:'owner',Business_Admin:'admin',Manager:'manager',Employee:'employee',Customer:'customer'};
+var TIER_ROLE={Super_User:'owner',Business_Admin:'owner',Manager:'manager',Employee:'employee',Customer:'customer'};   /* Business_Admin is the backend's synonym for super user; it used to map to 'admin', a role that exists in NO other list (NAV/PAGES/PORTAL/ROLEWORD), so such a user would have passed verifyUserRole and then crashed in navFor('admin') */
 var OFFERING_ROLES=['Manager','Business_Admin','Super_User'];
 /* verifyUserRole(['Manager',...]) -> {ok:true,role} or {ok:false,error:{code:'UNAUTHORIZED',message}}. Uses the signed-in person on screen and the signed-in business only. */
 function verifyUserRole(requiredTiers){
@@ -2961,7 +2961,7 @@ function navLabel(role,n){
 /* ---------- EMPLOYEE portal ---------- */
 function pgProfile(){
   var s=staffOf(me().staffId),mine=weekHours(ds(T0))[s.id],nxt=weekHours(ds(addD(T0,7)))[s.id];
-  var h=pageHead('Employee portal','Hours and certifications','Your weekly cap, approved sites and certification dates. Your manager and owner manage these.');
+  var h=pageHead('Employee portal','Hours and certifications','Your weekly cap, approved sites and certification dates. Your manager and super user manage these.');
   h+='<div class="cols"><div class="stack"><div class="card" style="display:grid;gap:14px"><h3>Weekly hours</h3>'+
     [['This week',mine],['Next week',nxt]].map(function(r){return '<div><div class="row sp sm"><span class="muted">'+r[0]+'</span><b class="mono">'+r[1]+' of '+s.maxHours+' h</b></div><div class="meter"><span style="width:'+Math.min(100,Math.round(r[1]/s.maxHours*100))+'%"></span></div></div>'}).join('')+'</div>'+
     '<div class="card" style="display:grid;gap:10px"><h3>Certifications</h3>'+certPanel(s)+s.certs.map(function(c){var dd=Math.round((pd(c.exp)-T0)/864e5);return '<div class="certrow"><b style="font-weight:600">'+esc(c.n)+'</b>'+(dd<0?'<span class="badge bad">Expired '+fdate(c.exp)+'</span>':dd<=30?'<span class="badge warn">Expires '+fdate(c.exp)+'</span>':'<span class="badge ok">Valid to '+fdate(c.exp)+'</span>')+'</div>'}).join('')+'</div></div>'+
@@ -3288,7 +3288,7 @@ function slotGrid(x){
 /* ---------- MANAGER and OWNER: shift drawer on the master schedule ---------- */
 function drawer(){
   var D=ui.drawer,x=D&&shiftOf(D.id);if(!x)return '';
-  if(!bookableShift(x)){var s0=staffOf(x.sid);return '<div class="scrim" data-a="close"><div class="sheet" role="dialog" aria-modal="true" aria-label="Shift details"><div class="row sp"><div class="row" style="flex-wrap:nowrap;gap:12px">'+avatar(s0,40)+'<div><h3 style="font-size:18px">'+esc(s0.name)+'</h3><div class="muted sm">'+esc(clsOf(x.cls).name)+' · '+esc(locOf(x.loc).name)+'</div></div></div><button class="btn sm" data-a="close">Close</button></div><div class="row" style="gap:8px"><span class="badge n">'+DAYL[dIdx(x.date)]+', '+fdate(x.date)+'</span><span class="badge n mono">'+fspan(x.s,x.e)+'</span></div><p class="muted">'+esc(clsOf(x.cls).name)+' shifts are not open for customer booking. An owner can change this on the Classifications page.</p></div></div>'}
+  if(!bookableShift(x)){var s0=staffOf(x.sid);return '<div class="scrim" data-a="close"><div class="sheet" role="dialog" aria-modal="true" aria-label="Shift details"><div class="row sp"><div class="row" style="flex-wrap:nowrap;gap:12px">'+avatar(s0,40)+'<div><h3 style="font-size:18px">'+esc(s0.name)+'</h3><div class="muted sm">'+esc(clsOf(x.cls).name)+' · '+esc(locOf(x.loc).name)+'</div></div></div><button class="btn sm" data-a="close">Close</button></div><div class="row" style="gap:8px"><span class="badge n">'+DAYL[dIdx(x.date)]+', '+fdate(x.date)+'</span><span class="badge n mono">'+fspan(x.s,x.e)+'</span></div><p class="muted">'+esc(clsOf(x.cls).name)+' shifts are not open for customer booking. A super user can change this on the Classifications page.</p></div></div>'}
   var s=staffOf(x.sid),d=pd(x.date),client=ui.lens==='client',L=LB(),editing=ui.slotMode==='edit';
   var sv=svcOf(ui.msvc)||activeSvcs()[0],len=sv?sv.min:30,free=freeMin(x),can=shortest();
   var starts=freeStarts(x,len).map(function(t){var past=isPastSlot(x.date,t);return '<button class="tm" '+(past?'disabled':'')+' aria-pressed="'+(ui.pick===t)+'" data-a="pickslot" data-t="'+t+'">'+fm(t)+(past?'<small>Passed</small>':'')+'</button>'}).join('');
@@ -3332,7 +3332,7 @@ function slotGrid(x){
 /* ---------- MANAGER and OWNER: shift drawer on the master schedule ---------- */
 function drawer(){
   var D=ui.drawer,x=D&&shiftOf(D.id);if(!x)return '';
-  if(!bookableShift(x)){var s0=staffOf(x.sid);return '<div class="scrim" data-a="close"><div class="sheet" role="dialog" aria-modal="true" aria-label="Shift details"><div class="row sp"><div class="row" style="flex-wrap:nowrap;gap:12px">'+avatar(s0,40)+'<div><h3 style="font-size:18px">'+esc(s0.name)+'</h3><div class="muted sm">'+esc(clsOf(x.cls).name)+' · '+esc(locOf(x.loc).name)+'</div></div></div><button class="btn sm" data-a="close">Close</button></div><div class="row" style="gap:8px"><span class="badge n">'+DAYL[dIdx(x.date)]+', '+fdate(x.date)+'</span><span class="badge n mono">'+fspan(x.s,x.e)+'</span></div><p class="muted">'+esc(clsOf(x.cls).name)+' shifts are not open for customer booking. An owner can change this on the Classifications page.</p></div></div>'}
+  if(!bookableShift(x)){var s0=staffOf(x.sid);return '<div class="scrim" data-a="close"><div class="sheet" role="dialog" aria-modal="true" aria-label="Shift details"><div class="row sp"><div class="row" style="flex-wrap:nowrap;gap:12px">'+avatar(s0,40)+'<div><h3 style="font-size:18px">'+esc(s0.name)+'</h3><div class="muted sm">'+esc(clsOf(x.cls).name)+' · '+esc(locOf(x.loc).name)+'</div></div></div><button class="btn sm" data-a="close">Close</button></div><div class="row" style="gap:8px"><span class="badge n">'+DAYL[dIdx(x.date)]+', '+fdate(x.date)+'</span><span class="badge n mono">'+fspan(x.s,x.e)+'</span></div><p class="muted">'+esc(clsOf(x.cls).name)+' shifts are not open for customer booking. A super user can change this on the Classifications page.</p></div></div>'}
   var s=staffOf(x.sid),d=pd(x.date),client=ui.lens==='client',L=LB(),editing=ui.slotMode==='edit';
   var sv=svcOf(ui.msvc)||activeSvcs()[0],len=sv?sv.min:30,free=freeMin(x),can=shortest();
   var starts=freeStarts(x,len).map(function(t){var past=isPastSlot(x.date,t);return '<button class="tm" '+(past?'disabled':'')+' aria-pressed="'+(ui.pick===t)+'" data-a="pickslot" data-t="'+t+'">'+fm(t)+(past?'<small>Passed</small>':'')+'</button>'}).join('');
