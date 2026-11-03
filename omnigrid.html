@@ -33,6 +33,12 @@ h1{font-size:clamp(22px,4.5vw,28px);font-weight:600;letter-spacing:-.025em;line-
 h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
 button,select,input{font:inherit;color:inherit}
 button{cursor:pointer}
+/* Global Mobile Standard #4 - native touch on every control. touch-action:manipulation
+   removes the ~300ms tap delay AND disables double-tap-to-zoom, the gesture that on iOS
+   SWALLOWS the second tap when someone ticks several names quickly. Declarative, so unlike
+   a touchstart handler it cannot double-fire beside the existing change handler. The
+   calendar's touch-action:none (.ccol/.cwin/.cgrip) is declared later and still wins. */
+button,input,select,textarea,label,.alchk,.alopt,.nl,.tab,.btn{touch-action:manipulation}
 .wrap{max-width:1120px;margin:0 auto}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .muted{color:var(--muted)}
