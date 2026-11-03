@@ -307,14 +307,17 @@ input[type=email],input[type=password],input[type=number],input[type=date],input
 
 @media (max-width:900px){
   .shell{grid-template-columns:minmax(0,1fr);gap:16px;padding-top:12px}
-  .side{position:sticky;top:env(safe-area-inset-top,0px);z-index:12;background:var(--bg);padding-block:10px 4px;gap:10px;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
+  .side{position:sticky;top:env(safe-area-inset-top,0px);z-index:12;background:var(--bg);padding-block:8px 2px;gap:8px;margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
   .side .biz{display:none}.side .me{display:none}
   .sbrand{justify-content:space-between}
   .nav{display:flex;gap:4px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
-  .nl{white-space:nowrap;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px}
+  .nl{white-space:nowrap;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:0 14px;min-height:48px}
   .nl[aria-current="page"]{background:var(--portal);color:var(--bg);border-color:var(--portal)}
   .nl[aria-current="page"]::before{display:none}
   .stats4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stats4 .stat{padding:11px 12px}
+  .stats4 .stat b{font-size:20px}
+  .tab{min-height:48px}
   .login{grid-template-columns:minmax(0,1fr)}
   .mobout{display:inline-flex!important}
 }
@@ -710,7 +713,7 @@ label.alopt{grid-template-columns:auto 1fr;align-items:start;gap:8px}label.alopt
 .ailog p{margin:4px 0;font-size:14px}.ailog p:nth-child(even){color:var(--muted)}
 
 /* ---- wide supervisor shell, provider stat chips, bulk hours ---- */
-.shell.wide{max-width:none;grid-template-columns:232px minmax(0,1fr)}
+.shell.wide{max-width:none}   /* the columns come from .shell; repeating them here made this rule (0,2,0) outrank the mobile collapse (0,1,0), so it never applied */
 .pchips{display:flex;gap:4px;flex-wrap:nowrap;min-width:0;overflow:hidden;margin-top:3px}
 .pchips i{font-style:normal;font-size:10px;font-weight:600;line-height:1;padding:3px 6px;border-radius:999px;background:var(--ink);color:var(--surface);white-space:nowrap}
 .pchips i+i{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line2)}
@@ -3013,7 +3016,7 @@ function pgClient(){
   };
   var h='<div class="row" style="margin-bottom:6px"><button class="btn sm" data-a="clback">← Back</button></div>';
   h+=pageHead(PORTAL[u.role],esc(name),(age!==''&&age!=null?'Age '+esc(age)+' · ':'')+esc(L.client)+(acct?' · family of '+esc(acct.name):' · walk-in, no account'));
-  h+='<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))"><div class="card stat"><div class="eyebrow">Attended</div><b class="mono">'+done+'</b></div><div class="card stat"><div class="eyebrow">Upcoming</div><b class="mono">'+up.length+'</b></div><div class="card stat"><div class="eyebrow">No-shows</div><b class="mono">'+ns+'</b></div><div class="card stat"><div class="eyebrow">Late cancels</div><b class="mono">'+late+'</b></div></div>';
+  h+='<div class="stats4"><div class="card stat"><div class="eyebrow">Attended</div><b class="mono">'+done+'</b></div><div class="card stat"><div class="eyebrow">Upcoming</div><b class="mono">'+up.length+'</b></div><div class="card stat"><div class="eyebrow">No-shows</div><b class="mono">'+ns+'</b></div><div class="card stat"><div class="eyebrow">Late cancels</div><b class="mono">'+late+'</b></div></div>';
   h+='<div class="cols"><div class="stack">';
   h+='<div class="card" style="display:grid;gap:10px"><h3>Upcoming</h3>'+(up.length?up.map(row).join(''):'<p class="muted sm">Nothing booked ahead.</p>')+'</div>';
   h+='<div class="card" style="display:grid;gap:10px"><h3>History</h3>'+(past.length?past.slice(0,30).map(row).join(''):'<p class="muted sm">No past bookings yet.</p>')+(past.length>30?'<p class="muted sm">Showing the latest 30.</p>':'')+'</div>';
@@ -3495,7 +3498,7 @@ function pgBooking(){
   var live=liveBook().filter(function(k){return startMs(k)>=now}),rev=0,soldN=0,soldV=0;live.forEach(function(k){if(k.paid&&!k.credit)rev+=k.price||0});
   B().users.forEach(function(u){(u.packs||[]).forEach(function(p){soldN++;soldV+=p.paid})});
   var h=pageHead(PORTAL[me().role],'Booking and pricing','What customers can buy, how it is sold, and the rules around it. Managers and the super user control all of this.');
-  h+='<div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"><div class="card stat"><div class="eyebrow">Customers</div><b class="mono">'+custs.length+'</b></div><div class="card stat"><div class="eyebrow">Upcoming bookings</div><b class="mono">'+live.length+'</b></div><div class="card stat"><div class="eyebrow">Paid, upcoming</div><b class="mono">'+money(rev)+'</b></div><div class="card stat"><div class="eyebrow">Packages sold</div><b class="mono">'+soldN+'</b><span class="muted sm">'+money(soldV)+'</span></div></div>';
+  h+='<div class="stats4"><div class="card stat"><div class="eyebrow">Customers</div><b class="mono">'+custs.length+'</b></div><div class="card stat"><div class="eyebrow">Upcoming bookings</div><b class="mono">'+live.length+'</b></div><div class="card stat"><div class="eyebrow">Paid, upcoming</div><b class="mono">'+money(rev)+'</b></div><div class="card stat"><div class="eyebrow">Packages sold</div><b class="mono">'+soldN+'</b><span class="muted sm">'+money(soldV)+'</span></div></div>';
   h+='<div class="cols"><div class="stack">';
   var viewPre=h;h='';   /* the whole offerings view below is built into h, then kept only if the role guard passes */
   h+='<div class="stack"><div><h3 style="font-size:19px">Services</h3><p class="muted sm" style="margin-top:4px">Each service is sold as a package, with a length, price, validity and optional registration rule. You can also let customers buy one at a time.</p></div>';
