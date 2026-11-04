@@ -978,7 +978,18 @@ function mkBiz(d){
     }
   });
   b.users.push({id:d.id+'-uo',email:d.owner[1],name:d.owner[0],role:'owner',pw:'demo1234'});
-  b.users.push({id:d.id+'-um',email:d.manager[1],name:d.manager[0],role:'manager',pw:'demo1234'});
+  /* §2.3: the manager TIER is retired, so the demo's manager is seeded exactly the way the migration
+     leaves an existing one - an ordinary employee carrying the 'Manager' CLASSIFICATION, which carries
+     the preset of capabilities (Run, and the people page). Not bookable: access, not a service, so
+     nobody classified Manager is ever offered to a customer as a provider. */
+  var mgrCls=b.classes.filter(function(c){return c.name===MGRCLASS})[0];
+  if(!mgrCls){mgrCls={id:d.id+'-cmgr',name:MGRCLASS,bookable:false,reqCert:''};b.classes.push(mgrCls)}
+  var mgrSid=d.id+'-smgr';
+  b.staff.push({id:mgrSid,name:d.manager[0],title:MGRCLASS,c:'e9',phone:'',maxHours:40,payCents:0,cls:[mgrCls.id],locs:[d.id+'-l1'],active:true,certs:[]});
+  b.avail[mgrSid]={};b.pref[mgrSid]={};
+  b.users.push({id:d.id+'-um',email:d.manager[1],name:d.manager[0],role:'employee',staffId:mgrSid,pw:'demo1234'});
+  b.grants=b.grants||[];
+  MGRPRESET.forEach(function(cap){b.grants.push({cap:cap,to:'class',id:mgrCls.id,by:d.id+'-uo',at:T0})});
   b.users.push({id:d.id+'-uc',email:d.customer[1],name:d.customer[0],role:'customer',pw:'demo1234',people:(d.people||[]).map(function(q,i){return {id:d.id+'-p'+(i+1),name:q[0],age:q[1]}})});
   d.staff.forEach(function(s,i){
     var id=d.id+'-s'+(i+1),M={a:'am',p:'pm',e:'ev'};
@@ -1277,7 +1288,10 @@ function svcVar(s,min){
 }
 /* who may change booking rules: managers and the super user (internal role owner), never staff or customers. The business is always the signed-in one: B() reads only that business's data. */
 /* ---- the page's copy of the role guard (same tiers and the same refusal as backend src/guards/roleGuard.js) ---- */
-var TIER_ROLE={Super_User:'owner',Business_Admin:'owner',Manager:'manager',Employee:'employee',Customer:'customer'};   /* Business_Admin is the backend's synonym for super user; it used to map to 'admin', a role that exists in NO other list (NAV/PAGES/PORTAL/ROLEWORD), so such a user would have passed verifyUserRole and then crashed in navFor('admin') */
+/* §2.3 retires the Manager TIER. The old public name is kept in this adapter and resolves to
+   'employee' - the very thing the migration turns a manager record into - so a tier string arriving
+   from an older export lands on a real role instead of nowhere. */
+var TIER_ROLE={Super_User:'owner',Business_Admin:'owner',Manager:'employee',Employee:'employee',Customer:'customer'};   /* Business_Admin is the backend's synonym for super user; it used to map to 'admin', a role that exists in NO other list (NAV/PAGES/PORTAL/ROLEWORD), so such a user would have passed verifyUserRole and then crashed in navFor('admin') */
 var OFFERING_ROLES=['Manager','Business_Admin','Super_User'];
 /* verifyUserRole(['Manager',...]) -> {ok:true,role} or {ok:false,error:{code:'UNAUTHORIZED',message}}. Uses the signed-in person on screen and the signed-in business only. */
 function verifyUserRole(requiredTiers){
@@ -1668,15 +1682,65 @@ function register(r){
 }
 function signOut(){REMOTE=null;SYNC={state:'idle',msg:''};ui.toast=null;DB.session=null;CURB=null;ui.page=null;ui.loginErr='';setHash('');save()}
 function setHash(p){try{if(history.replaceState)history.replaceState(null,'',p?'#'+p:location.pathname+location.search)}catch(e){}}
-var NAV={
-  employee:[['calendar','My availability'],['availability','Usual hours'],['shifts','My shifts'],['facility','Facility hours'],['profile','Hours and certifications']],
-  manager:[['roster','Roster'],['schedule','Master schedule'],['calendar','Calendar'],['hours','Hours and staffing'],['booking','Booking and pricing'],['team','Team']],
-  customer:[['book','Book'],['mine','My bookings'],['packages','Packages'],['people','My people']],
+/* ---------- navigation from the jobs a person HOLDS (roles §11, §2.3, §3) ----------
+   A person holds jobs, not one role, and the same account can be the business AND the instructor
+   (roles §15, solo mode). So the nav is the UNION of the page-sets the held jobs give. It is built
+   here once and the per-role tables below are DERIVED from it - a hand-copied per-role list is what
+   forced a special case for a teaching super user and would drift from the truth the first time a
+   page moved.
+     decide  the policy of the business     the super user, or anyone holding it   (canRules)
+     run     the running of the business    the super user, and the manager tier
+     teach   being bookable                 holds a staff record                   (iTeach)
+   consumer and platform are whole surfaces of their own, not jobs of a business.
+   NAVRANK decides the reading order once, so a union always comes out the same way. */
+/* §2.3: the word the retired tier becomes. A business may give this CLASSIFICATION to a person to
+   hand them the manager's access. It is a label a business chooses, not a rank - no code anywhere
+   tests for it, and the pages come from the capabilities the classification carries. */
+var MGRCLASS='Manager';
+/* The preset a 'Manager' classification carries. Deliberately NOT added to GRANT_CAPS: GRANT_CAPS is
+   what the grant screen OFFERS to people, and grants stay dormant in this build, so these two are
+   reachable by preset only and no new control appears anywhere. */
+var MGRPRESET=['run','team'];
+var NAVRANK={overview:0,roster:1,schedule:2,calendar:3,availability:4,shifts:5,facility:6,profile:7,hours:8,booking:9,staff:10,classes:11,settings:12,team:13};
+var JOBNAV={
+  decide:[['overview','Overview'],['hours','Hours and staffing'],['booking','Booking and pricing'],['staff','Staff'],['classes','Classifications'],['settings','Business settings']],
+  run:[['roster','Roster'],['schedule','Master schedule'],['calendar','Calendar'],['hours','Hours and staffing'],['booking','Booking and pricing']],
+  teach:[['calendar','My availability'],['availability','Usual hours'],['shifts','My shifts'],['facility','Facility hours'],['profile','Hours and certifications']],
+  consume:[['book','Book'],['mine','My bookings'],['packages','Packages'],['people','My people']],
   platform:[['console','Businesses'],['audit','Audit log'],['team','Platform team']],
-  owner:[['overview','Overview'],['roster','Roster'],['schedule','Master schedule'],['calendar','Calendar'],['hours','Hours and staffing'],['booking','Booking and pricing'],['staff','Staff'],['classes','Classifications'],['settings','Business settings']]
+  /* team: the people page. It used to be the manager TIER's own page; §2.3 retires the tier and
+     turns the word into a CLASSIFICATION carrying a preset of capabilities, so this page is now
+     reached by HOLDING the capability rather than by being a manager. The super user's own people
+     page is Staff, in decide, so this is not added to any other job. */
+  team:[['team','Team']]
 };
-var PORTAL={customer:'Customer portal',employee:'Employee portal',manager:'Manager portal',owner:'Super user portal',platform:'Platform'};
-var ROLEWORD={customer:'Customer',employee:'Employee',manager:'Manager',owner:'Super user',platform:'Platform admin'};
+function navUnion(jobs){
+  var out=[],seen={};
+  jobs.forEach(function(j){(JOBNAV[j]||[]).forEach(function(it){if(!seen[it[0]]){seen[it[0]]=1;out.push(it)}})});
+  /* One job keeps its declared order (platform reads Businesses, Audit log, Platform team).
+     More than one is a bundle, and those are read in the house order. */
+  if(jobs.length>1)out.sort(function(a,b){return NAVRANK[a[0]]-NAVRANK[b[0]]});
+  return out;
+}
+/* The four surfaces that remain (§2.3). There is deliberately no 'manager' entry: nothing resolves
+   a nav by that name any more, and navFor()/homeOf() go through the jobs a person holds. */
+var NAV={
+  employee:navUnion(['teach']),
+  customer:navUnion(['consume']),
+  platform:navUnion(['platform']),
+  owner:navUnion(['run','decide'])
+};
+/* §2.3: the manager TIER is gone. What a person is CALLED now follows from what they hold, and the
+   two tables below are keyed only by the surfaces that remain. Because they no longer carry a
+   'manager' entry, every reader goes through the two resolvers rather than indexing the table - a
+   bare PORTAL[role] on a record that had not been migrated yet would paint the word "undefined"
+   into the page header. */
+var PORTAL={customer:'Customer portal',employee:'Employee portal',owner:'Super user portal',platform:'Platform'};
+var ROLEWORD={customer:'Customer',employee:'Employee',owner:'Super user',platform:'Platform admin'};
+/* A record still carrying the retired role reads as an employee - which is what the migration turns
+   it into anyway, so no screen is ever left with a blank or "undefined" label in between. */
+function portalOf(u){var r=u&&u.role;return PORTAL[r]||PORTAL.employee}
+function roleWord(u){var r=u&&u.role;return ROLEWORD[r]||ROLEWORD.employee}
 var WEEKPAGES={shifts:1,roster:1,schedule:1,overview:1};
 
 /* =====================================================================
@@ -1779,7 +1843,70 @@ function homeLane(){
 /* The app's two supervisor tiers: Manager and Super user (whose internal role is 'owner').
    ONE definition - every "may this person supervise?" test goes through here. This idea used to
    be written four different ways, and one of them named an 'admin' role that exists nowhere. */
-function canSupervise(){var u=me();return !!(u&&(u.role==='owner'||u.role==='manager'))}
+/* ---------- what a person HOLDS (roles §11) ----------
+   The one place that answers "which jobs does this person hold?", so the nav, the pages and the
+   supervision test all read the SAME answer instead of each testing a role and drifting apart.
+   The job sets themselves are JOBNAV / JOBPAGES, declared once. */
+function jobsHeld(u){
+  u=u||me();if(!u)return [];
+  if(u.platform||u.role==='platform')return ['platform'];
+  if(u.role==='customer')return ['consume'];
+  var j=[];
+  /* Run and the people page are held by a CAPABILITY now, not by being the manager tier (§2.3).
+     The super user holds Run by being the super user; everyone else holds it by a grant - which is
+     exactly what the 'Manager' classification carries as its preset, so a person classified
+     Manager keeps everything a manager had without the code knowing the word "manager" at all. */
+  if(u.role==='owner'||hasGrant('run',u))j.push('run');
+  if(hasGrant('team',u))j.push('team');
+  if(canRules())j.push('decide');               /* policy is held by grant, not by rank (§12) */
+  if(iTeach())j.push('teach');                  /* being bookable is an identity, not a rank */
+  return j;
+}
+/* §2.3: supervision is a CAPABILITY, not a role test - "canSupervise() (owner-or-manager today)
+   becomes a capability check". It is exactly the people who hold Run, said in those words. */
+function canSupervise(){return jobsHeld().indexOf('run')>=0}
+/* ---------- §2.3: the Manager tier is retired, and existing managers are MIGRATED, not dropped ----------
+   Every record still saying role 'manager' becomes an ordinary employee carrying a 'Manager'
+   CLASSIFICATION, and that classification carries the preset of capabilities (MGRPRESET). The person
+   therefore keeps exactly the access a manager had, while nothing in the code tests for the word
+   "manager" any more. The classification is the reusable form: the next person the business wants to
+   manage is given the same classification and inherits the same preset with no code change - which is
+   the point of §12's "a grant may name one person or a whole classification".
+   Idempotent and cheap: it does nothing at all to a business with no such record. It runs before the
+   first paint, so no screen is ever drawn from an un-migrated record. */
+function migrateManagerTier(){
+  var changed=0;
+  Object.keys(DB.biz||{}).forEach(function(bk){
+    var b=DB.biz[bk],legacy=(b.users||[]).filter(function(u){return u.role==='manager'});
+    if(!legacy.length)return;
+    var owner=(b.users||[]).filter(function(u){return u.role==='owner'})[0];
+    /* the classification the retired tier becomes. NOT bookable: it is access, not a service, so nobody
+       classified Manager can ever be offered to a customer as a provider. */
+    var cls=(b.classes||[]).filter(function(c){return c.name===MGRCLASS})[0];
+    if(!cls){b.classes=b.classes||[];cls={id:b.id+'-cmgr',name:MGRCLASS,bookable:false,reqCert:''};b.classes.push(cls)}
+    var loc=(b.locations||[])[0],locId=loc?loc.id:null;
+    legacy.forEach(function(u){
+      u.role='employee';
+      var s=u.staffId?staffOf(u.staffId):null;
+      if(!s){   /* the record the classification has to live on */
+        var sid=u.id+'-smgr';
+        b.staff.push({id:sid,name:u.name,title:MGRCLASS,c:'e9',phone:'',maxHours:40,payCents:0,cls:[cls.id],locs:locId?[locId]:[],active:true,certs:[]});
+        b.avail[sid]=b.avail[sid]||{};b.pref[sid]=b.pref[sid]||{};
+        u.staffId=sid;
+      } else if((s.cls||[]).indexOf(cls.id)<0)s.cls.push(cls.id);
+      changed++;
+    });
+    /* the preset goes on the CLASSIFICATION, not on each person: one row covers this manager and every
+       future person the business classifies the same way. No cascade - the classification holds it. */
+    b.grants=b.grants||[];
+    MGRPRESET.forEach(function(cap){
+      var exists=b.grants.some(function(g){return g.cap===cap&&g.to==='class'&&g.id===cls.id});
+      if(!exists)b.grants.push({cap:cap,to:'class',id:cls.id,by:(owner||{}).id||'',at:TODAY});
+    });
+  });
+  if(changed)save();
+  return changed;
+}
 /* Who may release a booking that is waiting (B5)? Decided 2026-11-04: the INSTRUCTOR whose
    shift it sits on - they are the only person who has actually seen the child - or anyone in
    charge. Deliberately NOT canManage(k) on its own: that returns true for a CUSTOMER, because
@@ -1790,7 +1917,12 @@ function canRelease(k){var u=me();if(!u)return false;if(canSupervise())return tr
    deliberately NOT a second login, which is the whole point of §11a's "one login, two hats".
    With it they can publish availability and be booked like any provider. */
 function myStaff(){var u=me();return u&&u.staffId?staffOf(u.staffId):null}
-function iTeach(){return !!myStaff()}
+/* roles §3, §11: holding Teach means being BOOKABLE - having a record in at least one classification
+   that can actually be sold. A record carrying only a non-bookable classification (the 'Manager'
+   classification §2.3 introduces, for instance) is access, not a service: it must not put someone in
+   the provider lists or hand them a teaching view, or a manager would look to customers like an
+   instructor. */
+function iTeach(){var s=myStaff();return !!(s&&(s.cls||[]).some(function(c){return clsOf(c).bookable}))}
 /* The act that grants it. Returns the new staff id, or null when there is nothing to do. */
 function iAlsoTeach(){
   var u=me();if(!u||u.role!=='owner'||u.staffId)return null;
@@ -1811,7 +1943,7 @@ function iAlsoTeach(){
    nav only offers those pages to someone who does, so this is the belt to that braces. */
 function needTeacher(){
   var L=LB();
-  return pageHead(PORTAL[me().role],'Not a provider yet','','')+
+  return pageHead(portalOf(me()),'Not a provider yet','','')+
     '<div class="card"><h3>You do not teach yet</h3><p class="muted sm" style="margin:6px 0 12px">This page shows your own hours, '+esc(L.sessionPlural.toLowerCase())+' and certifications. Add yourself as '+esc(L.staff.toLowerCase())+' and it fills in.</p><button class="btn pri" data-a="iteach">I also teach</button></div>';
 }
 function adminBanner(){
@@ -2623,7 +2755,7 @@ function snapPicker(){
 function calHint(tl){return ({publish:'Click an empty time to add availability, or drag to set the exact range. Click a window to edit it. Drag it to move, or pull its top or bottom edge. Colours show the role; pick a role above to see just that schedule.',hold:'Drag over a window to hold that run back from online booking.',release:'Drag over a held run to open it to online booking again.',clear:'Drag over a run to take it off the calendar.',assign:'Pick an employee below, then click a published block to give it to them. Nothing new is created. Open Daily View to watch the block move into their lane.'})[tl]}
 function pgCalendar(){
   var date=calDay(),view=calView(),L=LB(),mgr=me().role!=='employee',who=calWho();
-  var h=pageHead(PORTAL[me().role],me().role==='employee'?'My availability':'Calendar','Publish when '+esc(L.staff.toLowerCase())+' can teach. There are no fixed shifts: click a time, drag to adjust, any run of 10-minute blocks works, and the open and booked picture updates as you go.');
+  var h=pageHead(portalOf(me()),iTeach()?'My availability':'Calendar','Publish when '+esc(L.staff.toLowerCase())+' can teach. There are no fixed shifts: click a time, drag to adjust, any run of 10-minute blocks works, and the open and booked picture updates as you go.');
   h+='<div class="calhead"><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" data-a="calnav" data-v="0">Today</button><button class="btn sm" data-a="calnav" data-v="-1" aria-label="Previous '+(view==='day'?'day':view==='month'?'month':'week')+'">‹</button><button class="btn sm" data-a="calnav" data-v="1" aria-label="Next '+(view==='day'?'day':view==='month'?'month':'week')+'">›</button><h2 class="calrange">'+esc(calRange(date))+'</h2></div>'+
     '<div class="row" style="gap:8px;flex-wrap:wrap">'+(mgr&&view!=='day'&&who?'<label class="sr" for="cwho">'+esc(L.staff)+'</label><select id="cwho" class="calpick" data-c="calWho">'+calStaff().map(function(s){return '<option value="'+s.id+'"'+(s.id===who.id?' selected':'')+'>'+esc(s.name)+'</option>'}).join('')+'</select>':'')+
     '<div class="seg" role="group" aria-label="Calendar view"><button aria-pressed="'+(view==='day')+'" data-a="cview" data-v="day">Daily View</button><button aria-pressed="'+(view==='week')+'" data-a="cview" data-v="week">Week</button><button aria-pressed="'+(view==='month')+'" data-a="cview" data-v="month">Month</button></div>'+
@@ -2937,7 +3069,7 @@ function viewLogin(){
 }
 function viewSignIn(){
   var biz=Object.keys(DB.biz).map(function(k){return DB.biz[k]});
-  var h='<div class="hubwrap fade-in"><div class="stack" style="display:grid;gap:16px"><form class="card signin" data-f="login"><div><h2 style="font-size:22px;font-weight:600;letter-spacing:-.02em">Workspace Hub</h2><p class="muted sm" style="margin-top:4px">One sign-in for customers, employees, managers and super users.</p></div>'+
+  var h='<div class="hubwrap fade-in"><div class="stack" style="display:grid;gap:16px"><form class="card signin" data-f="login"><div><h2 style="font-size:22px;font-weight:600;letter-spacing:-.02em">Workspace Hub</h2><p class="muted sm" style="margin-top:4px">One sign-in for customers, employees and super users.</p></div>'+
   (ui.loginErr?'<div class="err" role="alert">'+esc(ui.loginErr)+'</div>':'')+
   '<label for="lslug">Business code<input id="lslug" type="text" value="'+esc(ui.f.slug)+'" data-c="lf" data-k="slug" autocapitalize="none" autocomplete="organization"></label>'+
   '<label for="lemail">Email<input id="lemail" type="email" value="'+esc(ui.f.email)+'" data-c="lf" data-k="email" autocomplete="username"></label>'+
@@ -2946,9 +3078,18 @@ function viewSignIn(){
   '<form class="card signin" data-f="register"><div><h2 style="font-size:18px;font-weight:600;letter-spacing:-.02em">New customer? Create an account</h2><p class="muted sm" style="margin-top:4px">Ask the business for its code. You will be able to book and pay online.</p></div>'+(ui.regErr?'<div class="err" role="alert">'+esc(ui.regErr)+'</div>':'')+'<div class="fgrid"><label for="rslug">Business code<input id="rslug" type="text" value="'+esc(ui.reg.slug)+'" data-c="rg" data-k="slug" autocapitalize="none"></label><label for="rname">Your name<input id="rname" type="text" value="'+esc(ui.reg.name)+'" data-c="rg" data-k="name" autocomplete="name"></label><label for="remail">Email<input id="remail" type="email" value="'+esc(ui.reg.email)+'" data-c="rg" data-k="email" autocomplete="email"></label><label for="rpw">Password (8+ characters)<input id="rpw" type="password" value="'+esc(ui.reg.pw)+'" data-c="rg" data-k="pw" autocomplete="new-password"></label></div><button class="btn" type="submit">Create customer account</button></form><div class="demo"><h3>Demo accounts · password demo1234</h3>';
   biz.forEach(function(b){
     if(b.slug!=='northside'&&b.slug!=='harbor')return; // only the two sample businesses have demo sign-ins
-    var c=b.users.filter(function(u){return u.role==='customer'})[0],o=b.users.filter(function(u){return u.role==='owner'})[0],m=b.users.filter(function(u){return u.role==='manager'})[0],e=b.users.filter(function(u){return u.role==='employee'})[0];
+    var c=b.users.filter(function(u){return u.role==='customer'})[0],o=b.users.filter(function(u){return u.role==='owner'})[0];
+    /* §2.3: there is no manager ROLE to look up any more. The demo row shows whoever the business has
+       CLASSIFIED Manager - the classification is what carries the access, and it is also the label. A
+       business that has handed it to nobody simply gets no such row. */
+    var mgrCls=(b.classes||[]).filter(function(x){return x.name===MGRCLASS})[0];
+    var carries=function(u,cid){var s=(b.staff||[]).filter(function(x){return x.id===u.staffId})[0];return !!(s&&(s.cls||[]).indexOf(cid)>-1)};
+    var m=mgrCls?b.users.filter(function(u){return carries(u,mgrCls.id)})[0]:null;
+    /* and the employee row must be a PROVIDER, not the person we just called Manager - otherwise the
+       same face appears twice, once as an instructor and once as a manager. */
+    var e=b.users.filter(function(u){return u.role==='employee'&&(!mgrCls||!carries(u,mgrCls.id))})[0];
     h+='<div class="dbiz"><div class="nm"><b>'+esc(b.name)+'</b><span>code: '+esc(b.slug)+' · '+esc(b.labels.staffPlural||'Providers')+'</span></div><div class="dbtns">'+
-      [['customer',c,'p-cus'],['employee',e,'p-emp'],['manager',m,'p-mgr'],['owner',o,'p-own']].map(function(r){return '<button class="dbtn" style="--c:var(--'+r[2]+')" data-a="demo" data-biz="'+b.slug+'" data-email="'+esc(r[1].email)+'"><b>'+(r[0]==='employee'?esc(b.labels.staff):ROLEWORD[r[0]])+'</b><small>'+esc(r[1].name)+'</small></button>'}).join('')+'</div></div>';
+      [['customer',c,'p-cus',ROLEWORD.customer],['employee',e,'p-emp',b.labels.staff],['mancls',m,'p-mgr',MGRCLASS],['owner',o,'p-own',ROLEWORD.owner]].filter(function(r){return r[1]}).map(function(r){return '<button class="dbtn" style="--c:var(--'+r[2]+')" data-a="demo" data-biz="'+b.slug+'" data-email="'+esc(r[1].email)+'"><b>'+esc(r[3])+'</b><small>'+esc(r[1].name)+'</small></button>'}).join('')+'</div></div>';
   });
   if(!serverMode())h+='<div class="dbiz"><div class="nm"><b>OmniGrid team</b><span>code: '+PLAT_SLUG+' · runs the service</span></div><div class="dbtns"><button class="dbtn" style="--c:var(--p-own)" data-a="demo" data-biz="'+PLAT_SLUG+'" data-email="'+esc(DB.platform.admins[0].email)+'"><b>Platform admin</b><small>'+esc(DB.platform.admins[0].name)+'</small></button></div></div>';
   return h+'</div></div>';
@@ -3042,18 +3183,18 @@ function viewAsBox(){
 }
 function asBanner(){
   if(!DB.session.as)return '';var u=me();
-  return '<div class="asbar" role="status"><span>Viewing as <b>'+esc(u.name)+'</b> ('+esc(ROLEWORD[u.role])+'). What you do here is saved as them.</span><button class="btn sm" data-a="viewas" data-v="">Back to super user</button></div>';
+  return '<div class="asbar" role="status"><span>Viewing as <b>'+esc(u.name)+'</b> ('+esc(roleWord(u))+'). What you do here is saved as them.</span><button class="btn sm" data-a="viewas" data-v="">Back to super user</button></div>';
 }
 function shell(inner){
   var u=me(),b=B(),nav=navFor(u.role),sup=canSupervise(),alerts=sup?alertsCount():0;   /* supervisors get the three-panel workspace: nav | AI rail + page | This Week */
   return '<div class="shell'+(sup?' wide':'')+'" data-portal="'+u.role+'"><aside class="side"><div class="sbrand">'+MARK+'OmniGrid<button class="btn sm mobout" style="margin-left:auto" data-a="logout">Sign out</button></div>'+
   '<div class="biz"><span class="lg">'+esc(b.name[0])+'</span><div style="min-width:0"><b>'+esc(b.name)+'</b><span>Code: '+esc(b.slug)+'</span></div></div>'+
-  viewAsBox()+hatSwitch()+'<div class="ptag" style="padding:0 2px">'+PORTAL[u.role]+'</div>'+
-  '<nav class="nav" aria-label="'+PORTAL[u.role]+'">'+nav.map(function(n){
+  viewAsBox()+hatSwitch()+'<div class="ptag" style="padding:0 2px">'+portalOf(u)+'</div>'+
+  '<nav class="nav" aria-label="'+portalOf(u)+'">'+nav.map(function(n){
     var badge=(n[0]==='overview'&&alerts)?'<span class="nb2" title="'+alerts+' compliance alerts">'+alerts+'</span>':'';
     return '<button class="nl" '+(n[0]===ui.page?'aria-current="page"':'')+' data-a="nav" data-v="'+n[0]+'">'+esc(navLabel(u.role,n))+badge+'</button>';
   }).join('')+'</nav>'+
-  '<div class="me"><div class="who2"><span class="ini">'+esc(initials(u.name))+'</span><div style="min-width:0"><b>'+esc(u.name)+'</b><span>'+ROLEWORD[u.role]+(u.role==='employee'?' · '+esc(staffOf(u.staffId).title):'')+'</span></div></div><button class="btn sm" data-a="logout">Sign out</button></div></aside>'+
+  '<div class="me"><div class="who2"><span class="ini">'+esc(initials(u.name))+'</span><div style="min-width:0"><b>'+esc(u.name)+'</b><span>'+roleWord(u)+(u.role==='employee'?' · '+esc(staffOf(u.staffId).title):'')+'</span></div></div><button class="btn sm" data-a="logout">Sign out</button></div></aside>'+
   '<div class="content">'+(sup?aiRail(true):'')+asBanner()+adminBanner()+hoursCardHtml()+inner+'<div class="foot"><span>Prototype with sample data, saved in this browser.</span><button class="btn sm" data-a="reset">Reset demo data</button></div></div></div>';
 }
 /* §11a: the Teaching / Business switch. Rendered only for someone who genuinely holds both jobs -
@@ -3069,7 +3210,7 @@ function navLabel(role,n){
   var L=LB(),k=n[0];
   var T={
     /* the week views — the three that describe one object, flagged for the merge */
-    roster:L.week, schedule:'Master '+L.week.toLowerCase(), calendar:(role==='employee'?'My availability':'Calendar'),
+    roster:L.week, schedule:'Master '+L.week.toLowerCase(), calendar:(teachingLens()?'My availability':'Calendar'),
     /* the employee's own things */
     shifts:'My '+L.sessionPlural, availability:'Usual hours', profile:'Hours and certifications',
     facility:'Facility hours',
@@ -3109,7 +3250,7 @@ function contactCell(s){
 }
 function pgTeam(){
   var L=LB(),wh=weekHours(ds(T0));
-  var h=pageHead(PORTAL[me().role],esc(L.staffPlural),'Contact details, hours, sites and certification status. Pay and employment details are managed by the super user.');
+  var h=pageHead(portalOf(me()),esc(L.staffPlural),'Contact details, hours, sites and certification status. Pay and employment details are managed by the super user.');
   h+='<div class="card flush scroll"><table class="tbl" style="min-width:760px"><thead><tr><th style="padding-left:16px">'+esc(L.staff)+'</th><th>Contact</th><th>Sites</th><th>Hours this week</th><th>Availability</th><th>Compliance</th></tr></thead><tbody>';
   activeStaff().forEach(function(s){
     var al=certAlerts(s,TODAY),cnt=Object.keys(B().avail[s.id]).filter(function(k){return B().avail[s.id][k]}).length;
@@ -3225,14 +3366,39 @@ function pgStaff(){
 /* ---------- OWNER: business settings ---------- */
 
 /* the first page staff land on: the calendar for appointment businesses (the default), or the overview */
-function homeOf(role){return ((role==='manager'||role==='owner')&&B()&&B().home!=='overview')?'calendar':NAV[role][0][0]}
+/* the first page a person lands on: whatever their own nav offers first. navFor already applies the
+   calendar-first rule for the businesses that asked for it, so this no longer repeats it - and it no
+   longer names a role, which is what left it reaching for a 'manager' entry that no longer exists. */
+function homeOf(role){var n=navFor(role);return n.length?n[0][0]:'calendar'}
+/* The LENS the nav is resolved through. Someone who holds a business job as well as Teach chooses with
+   the Teaching / Business switch; someone whose ONLY job is Teach is always in the teaching lens,
+   because there is nothing to switch to. ONE place, so the pages and the words on them cannot disagree -
+   the nav and its labels both read this rather than testing a role. */
+function lensJobs(u){
+  u=u||me();if(!u)return [];
+  var j=jobsHeld(u);
+  if(!j.length)return [];
+  if(j.indexOf('run')>=0||j.indexOf('decide')>=0)
+    return (iTeach()&&ui.hat==='teach')?['teach']:j.filter(function(x){return x!=='teach'});
+  return j;
+}
+/* true when the nav on screen is the teaching lens - which is what makes the calendar "My availability"
+   rather than "Calendar". A manager is not a role any more, so this cannot be a role test. */
+function teachingLens(){var j=lensJobs();return j.length===1&&j[0]==='teach'}
 function navFor(role){
-  /* §11a solo identity: a super user who also teaches gets the provider's nav in the teaching
-     hat. The business pages stay one tap away on the switch in the header. Only for someone who
-     actually holds Teach - otherwise the hat does nothing and the switch is not shown. */
-  if(role==='owner'&&iTeach()&&ui.hat==='teach')return NAV.employee.slice();
-  var n=NAV[role].slice();
-  if((role==='manager'||role==='owner')&&B().home!=='overview'){var i=-1;n.forEach(function(x,k){if(x[0]==='calendar')i=k});if(i>0){var c=n.splice(i,1)[0];n.unshift(c)}}
+  /* §2.3, §11, §3: the nav is built from what the person HOLDS, not from the role they are called.
+     `role` stays in the signature only so the existing call sites do not all have to change - what
+     it says no longer decides anything. A super user who also teaches holds Teach, so the teaching
+     hat shows the provider's pages while the business pages stay one tap away on the switch in the
+     header. Someone who does not hold Teach sees no switch and nothing new at all. */
+  var u=me();
+  if(!u)return (NAV[role]||[]).slice();                              /* signed out: nothing decided yet */
+  if(u.platform||u.role==='platform')return NAV.platform.slice();
+  if(u.role==='customer')return NAV.customer.slice();
+  var jobs=lensJobs(u);
+  if(!jobs.length)return [];
+  var n=navUnion(jobs);
+  if(jobs.indexOf('run')>=0&&B()&&B().home!=='overview'){var i=-1;n.forEach(function(x,k){if(x[0]==='calendar')i=k});if(i>0){var c=n.splice(i,1)[0];n.unshift(c)}}
   return n;
 }
 
@@ -3263,7 +3429,7 @@ function pgClient(){
     return '<div class="row sp clrow"><div><b>'+DAYS[dIdx(k.date)]+' '+fdate(k.date)+'</b> <span class="mono muted">'+fm(k.t)+' – '+fm(k.t+k.len)+'</span><div class="muted sm">'+esc(k.svcName||'Booking')+(s?' · with '+esc(s.name):'')+'</div></div><span class="badge '+cls+'">'+st+'</span></div>';
   };
   var h='<div class="row" style="margin-bottom:6px"><button class="btn sm" data-a="clback">← Back</button></div>';
-  h+=pageHead(PORTAL[u.role],esc(name),(age!==''&&age!=null?'Age '+esc(age)+' · ':'')+esc(L.client)+(acct?' · family of '+esc(acct.name):' · walk-in, no account'));
+  h+=pageHead(portalOf(u),esc(name),(age!==''&&age!=null?'Age '+esc(age)+' · ':'')+esc(L.client)+(acct?' · family of '+esc(acct.name):' · walk-in, no account'));
   h+='<div class="stats4"><div class="card stat"><div class="eyebrow">Attended</div><b class="mono">'+done+'</b></div><div class="card stat"><div class="eyebrow">Upcoming</div><b class="mono">'+up.length+'</b></div><div class="card stat"><div class="eyebrow">No-shows</div><b class="mono">'+ns+'</b></div><div class="card stat"><div class="eyebrow">Late cancels</div><b class="mono">'+late+'</b></div></div>';
   h+='<div class="cols"><div class="stack">';
   /* staff only, both cards: the standing and the checklist are the instructor's working picture
@@ -3297,7 +3463,7 @@ function pgSettings(){
     '<div class="card" style="display:grid;gap:14px"><div><h3>Business</h3><p class="muted sm" style="margin-top:4px">Sign-in code: <b class="mono">'+esc(b.slug)+'</b></p></div><div class="fgrid"><label class="field" for="bn">Business name<input id="bn" type="text" value="'+esc(b.name)+'" data-c="biz" data-field="name"></label></div></div>'+
     '<div class="card" style="display:grid;gap:12px"><h3>Sites</h3>'+b.locations.map(function(l){return '<div class="row" style="flex-wrap:nowrap"><input type="text" aria-label="Site name" value="'+esc(l.name)+'" data-c="loc" data-id="'+l.id+'" data-field="name" style="flex:1 1 auto">'+(activeLocs().length>1&&l.active?'<button class="btn sm danger" data-a="delLoc" data-id="'+l.id+'">Remove</button>':'')+'</div>'}).join('')+
     '<form data-f="addLoc" class="row"><input id="nl" type="text" placeholder="New site name" required style="flex:1 1 200px"><button class="btn" type="submit">Add site</button></form></div></div>'+
-    '<aside class="stack"><div class="card" style="display:grid;gap:10px"><h3>Accounts</h3>'+b.users.map(function(u){return '<div class="row sp sm"><div style="min-width:0"><b>'+esc(u.name)+'</b><div class="muted" style="overflow-wrap:anywhere">'+esc(u.email)+'</div></div><span class="badge '+(u.role==='owner'?'warn':u.role==='manager'?'n':'ok')+'">'+ROLEWORD[u.role]+'</span></div>'}).join('')+
+    '<aside class="stack"><div class="card" style="display:grid;gap:10px"><h3>Accounts</h3>'+b.users.map(function(u){return '<div class="row sp sm"><div style="min-width:0"><b>'+esc(u.name)+'</b><div class="muted" style="overflow-wrap:anywhere">'+esc(u.email)+'</div></div><span class="badge '+(u.role==='owner'?'warn':u.role==='manager'?'n':'ok')+'">'+roleWord(u)+'</span></div>'}).join('')+
     '<form data-f="addMgr" style="display:grid;gap:8px;margin-top:6px"><div class="eyebrow">Add a manager</div><input id="mn" type="text" placeholder="Full name" required><input id="me" type="email" placeholder="Email" required><button class="btn" type="submit">Create manager account</button></form></div></aside></div>';
   return h;
 }
@@ -3383,7 +3549,7 @@ function myShifts(sid,weekOff){
   return out.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.s-b.s});
 }
 function pgFacility(){
-  var h=pageHead(PORTAL[me().role],'Facility hours','When each site is open. Your managers and super user set these and can change them for a single day.');
+  var h=pageHead(portalOf(me()),'Facility hours','When each site is open. Your managers and super user set these and can change them for a single day.');
   h+='<div class="grid2">'+activeLocs().map(hoursCard).join('')+'</div>';
   return h;
 }
@@ -3407,7 +3573,7 @@ function lanes(list){
 }
 function pgSchedule(){
   var w=wdates(),client=ui.lens==='client',L=LB(),loc=locOf(ui.loc),ax=axisFor(w.map(ds),ui.loc),rows=ax.b-ax.a;
-  var h=pageHead(PORTAL[me().role],client?'Book '+indef(L.session)+esc(L.session.toLowerCase()):'Team schedule',client?'Each shift shows how many '+esc(L.session.toLowerCase())+' times are still open at '+esc(loc.name)+'. Pick a shift to book 30 minutes for '+indef(L.client)+esc(L.client.toLowerCase())+'.':'Who is working each hour at '+esc(loc.name)+', with dashed bands where more people are needed.',weekNav());
+  var h=pageHead(portalOf(me()),client?'Book '+indef(L.session)+esc(L.session.toLowerCase()):'Team schedule',client?'Each shift shows how many '+esc(L.session.toLowerCase())+' times are still open at '+esc(loc.name)+'. Pick a shift to book 30 minutes for '+indef(L.client)+esc(L.client.toLowerCase())+'.':'Who is working each hour at '+esc(loc.name)+', with dashed bands where more people are needed.',weekNav());
   h+='<div class="row sp">'+locChips()+(!client&&canDemand()?'<button class="btn sm" data-a="copywk">Copy current week to next week</button>':'')+'<div class="seg" role="group" aria-label="Lens"><button aria-pressed="'+client+'" data-a="lens" data-v="client">Client view</button><button aria-pressed="'+!client+'" data-a="lens" data-v="team">Team view</button></div></div>';
   h+='<div class="legend">'+activeStaff().filter(function(s){return approved(s,ui.loc)}).map(function(s){return client?'<span style="--c:var(--'+s.c+')"><i></i>'+esc(s.name)+'</span>':'<button type="button" class="gtok" data-sid="'+s.id+'" style="--c:var(--'+s.c+')"><i></i>'+esc(s.name)+'</button>'}).join('')+'</div>';
   h+=dayChips(false);
@@ -3852,7 +4018,7 @@ function pgBooking(){
   var L=LB(),R=B().rules,custs=B().users.filter(function(u){return u.role==='customer'}),now=Date.now();
   var live=liveBook().filter(function(k){return startMs(k)>=now}),rev=0,soldN=0,soldV=0;live.forEach(function(k){if(k.paid&&!k.credit)rev+=k.price||0});
   B().users.forEach(function(u){(u.packs||[]).forEach(function(p){soldN++;soldV+=p.paid})});
-  var h=pageHead(PORTAL[me().role],'Booking and pricing','What customers can buy, how it is sold, and the rules around it. '+(canRules()?'You control all of this.':'The super user controls this. Ask them to allow you if you need to change it.'));
+  var h=pageHead(portalOf(me()),'Booking and pricing','What customers can buy, how it is sold, and the rules around it. '+(canRules()?'You control all of this.':'The super user controls this. Ask them to allow you if you need to change it.'));
   h+='<div class="stats4"><div class="card stat"><div class="eyebrow">Customers</div><b class="mono">'+custs.length+'</b></div><div class="card stat"><div class="eyebrow">Upcoming bookings</div><b class="mono">'+live.length+'</b></div><div class="card stat"><div class="eyebrow">Paid, upcoming</div><b class="mono">'+money(rev)+'</b></div><div class="card stat"><div class="eyebrow">Packages sold</div><b class="mono">'+soldN+'</b><span class="muted sm">'+money(soldV)+'</span></div></div>';
   h+='<div class="cols"><div class="stack">';
   var viewPre=h;h='';   /* the whole offerings view below is built into h, then kept only if the role guard passes */
@@ -3927,8 +4093,8 @@ function suiteNav(dstr){
 function pgRoster(){
   var s=activeSuite(),L=LB(),dstr=ds(wdates()[ui.day]);
   var h=s==='booking'
-    ?pageHead(PORTAL[me().role],esc(L.session)+'s and packages','Who is booked, '+esc(L.client.toLowerCase())+' details for the day and package balances. Change times on the Calendar.',weekNav())
-    :pageHead(PORTAL[me().role],'Daily roster','Who is onsite now, who arrives next and where cover is short. Add or move shifts on the Calendar.',weekNav());
+    ?pageHead(portalOf(me()),esc(L.session)+'s and packages','Who is booked, '+esc(L.client.toLowerCase())+' details for the day and package balances. Change times on the Calendar.',weekNav())
+    :pageHead(portalOf(me()),'Daily roster','Who is onsite now, who arrives next and where cover is short. Add or move shifts on the Calendar.',weekNav());
   h+=locChips();
   return h+'<div class="suitegrid">'+suiteNav(dstr)+'<div class="suitemain">'+(s==='booking'?renderBookingSuite(dstr):renderWorkforceSuite(dstr))+'</div></div>';
 }
@@ -3991,7 +4157,7 @@ function renderBookingSuite(dstr){
 /* ---------- MANAGER and OWNER: hours and staffing ---------- */
 function pgHours(){
   var L=LB(),loc=locOf(ui.loc),dow=ui.hday,w=(B().hours[ui.loc]||{})[dow],cid=curHcls(),cl=clsOf(cid);
-  var h=pageHead(PORTAL[me().role],'Hours and staffing','Set when '+esc(loc.name)+' is open each day and how many people of each classification every hour needs. Everyone who signs in can see the hours.');
+  var h=pageHead(portalOf(me()),'Hours and staffing','Set when '+esc(loc.name)+' is open each day and how many people of each classification every hour needs. Everyone who signs in can see the hours.');
   h+=locChips();
   var hb=hbState();
   h+='<div class="cols"><div class="stack"><div class="card" style="display:grid;gap:12px"><div class="row sp"><div><h3>Weekly hours</h3><p class="muted sm" style="margin-top:4px">Group days that share the same hours into a block. A day can sit in one block only. Save once to apply every block. These repeat every week; to change one date only, use Edit hours on the Roster.</p></div><button class="btn sm" data-a="hbadd">+ Add Hours Block</button></div>'+
@@ -4393,14 +4559,33 @@ function pgPackages(){
 /* ----- manager and super user: set package prices ----- */
 /* ---------- paint ---------- */
 var PLATPAGES={console:pgConsole,audit:pgAudit,team:pgPlatTeam};
+/* §2.3, §11: the pages follow from the jobs held, exactly as the nav does (JOBNAV). The teaching
+   super user no longer needs the provider's pages COPIED into their row by hand - they hold Teach,
+   so they get them. pgFacility was always safe; the other three return needTeacher() rather than
+   throw, so asking for one you do not hold paints an explanation instead of breaking the screen. */
+var JOBPAGES={
+  decide:{client:pgClient,overview:pgOverview,hours:pgHours,booking:pgBooking,staff:pgStaff,classes:pgClasses,settings:pgSettings},
+  run:{client:pgClient,roster:pgRoster,schedule:pgSchedule,calendar:pgCalendar,hours:pgHours,booking:pgBooking},
+  teach:{client:pgClient,calendar:pgCalendar,availability:pgAvailability,shifts:pgShifts,facility:pgFacility,profile:pgProfile},
+  consume:{book:pgBook,mine:pgMine,packages:pgPackages,people:pgPeople},
+  platform:{console:pgConsole,audit:pgAudit,team:pgPlatTeam},
+  /* team: the people page. It was the manager TIER's own page; §2.3 retires the tier, so the page is
+     reached by HOLDING the capability - which is what a 'Manager' classification carries as its preset.
+     Nothing on this line knows the word "manager". */
+  team:{client:pgClient,team:pgTeam}
+};
+function pagesUnion(jobs){
+  var out={};
+  jobs.forEach(function(j){var m=JOBPAGES[j]||{};for(var k in m)if(!(k in out))out[k]=m[k]});
+  return out;
+}
+/* The four surfaces that remain (§2.3). No 'manager' entry, on purpose: the boot indexes this by role,
+   and a record still carrying that role is migrated before anything reads it. */
 var PAGES={
-  customer:{book:pgBook,mine:pgMine,packages:pgPackages,people:pgPeople},
-  employee:{client:pgClient,availability:pgAvailability,calendar:pgCalendar,shifts:pgShifts,facility:pgFacility,profile:pgProfile},
-  manager:{client:pgClient,roster:pgRoster,schedule:pgSchedule,calendar:pgCalendar,hours:pgHours,booking:pgBooking,team:pgTeam},
-  /* §11a: an owner who also teaches gets the provider pages too, because the teaching hat's nav
-     offers them. pgFacility was always safe; the other three return needTeacher() rather than throw. */
-  owner:{client:pgClient,overview:pgOverview,roster:pgRoster,schedule:pgSchedule,calendar:pgCalendar,hours:pgHours,booking:pgBooking,staff:pgStaff,classes:pgClasses,settings:pgSettings,
-    availability:pgAvailability,shifts:pgShifts,facility:pgFacility,profile:pgProfile}
+  customer:pagesUnion(['consume']),
+  employee:pagesUnion(['teach']),
+  owner:pagesUnion(['run','decide','teach']),
+  platform:pagesUnion(['platform'])
 };
 /* paint() rebuilds the whole screen, which makes the browser throw away every scroll position (the calendar grid restarts at its top, the page can jump). So a repaint of the
    SAME page puts each calendar grid, and the page itself, back exactly where it was. Changing page starts at the top as usual. Nothing here ever scrolls anywhere new. */
@@ -4813,7 +4998,7 @@ document.addEventListener('change',function(e){
   else if(c==='pfield'&&me().role==='customer'){var pq=(me().people||[]).filter(function(q){return q.id===el.dataset.id})[0];if(pq){if(el.dataset.field==='name')pq.name=el.value.trim()||pq.name;else pq.age=parseAge(el.value);
     B().book.forEach(function(k){if(k.pid===pq.id&&k.status!=='cancelled'&&k.date>=TODAY){k.client=pq.name;k.age=pq.age}})}}
   else if(c==='biz'){B().name=el.value.trim()||B().name}
-  else if(c==='nsF'&&(me().role==='owner'||me().role==='manager')){
+  else if(c==='nsF'&&canSupervise()){
     var nn=ui.ns||(ui.ns=newStaffState()),k=el.dataset.field,val=el.value,id=el.dataset.id;
     if(k==='locs'||k==='cls'){var ar=nn[k],ix=ar.indexOf(id),on=(typeof el.checked==='boolean')?el.checked:ix<0;if(on&&ix<0)ar.push(id);else if(!on&&ix>-1)ar.splice(ix,1)}
     else if(k==='cert'){nn.certs[id]=val}
@@ -4944,7 +5129,7 @@ document.addEventListener('submit',function(e){
     delete ui.newEvery;ui.everyTouched=false;   /* the next new service starts fresh: interval follows its length again */
     toast(sn+' added and bookable'+(kq>=2?' with a package':''));
   }
-  else if(f==='addStaff'&&(me().role==='owner'||me().role==='manager')){
+  else if(f==='addStaff'&&canSupervise()){
     var ns=ui.ns;if(!ns)return;
     var nm=String(ns.name||'').trim(),em=String(ns.email||'').trim().toLowerCase();
     if(!nm){toast('Enter their name');return}
@@ -4982,7 +5167,16 @@ document.addEventListener('submit',function(e){
   else if(f==='addMgr'){
     var mn=v('mn').trim(),me2=v('me').trim().toLowerCase();if(!mn||!me2)return;
     if(B().users.some(function(u){return u.email===me2})){toast('That email already has an account');return}
-    B().users.push({id:uid('u'),email:me2,name:mn,role:'manager',pw:'demo1234'});toast(mn+' can now sign in as a manager (password demo1234)');
+    /* §2.3: an EMPLOYEE carrying the 'Manager' CLASSIFICATION, not a manager. The access comes from
+       the classification's preset, so the next person given it inherits the same thing. */
+    var mgCls=(B().classes||[]).filter(function(c){return c.name===MGRCLASS})[0];
+    if(!mgCls){B().classes=B().classes||[];mgCls={id:B().id+'-cmgr',name:MGRCLASS,bookable:false,reqCert:''};B().classes.push(mgCls)}
+    var mgUid=uid('u'),mgSid=mgUid+'-s';
+    B().staff.push({id:mgSid,name:mn,title:MGRCLASS,c:'e9',phone:'',maxHours:40,payCents:0,cls:[mgCls.id],locs:activeLocs().map(function(l){return l.id}).slice(0,1),active:true,certs:[]});
+    B().avail[mgSid]={};B().pref[mgSid]={};
+    B().users.push({id:mgUid,email:me2,name:mn,role:'employee',staffId:mgSid,pw:'demo1234'});
+    MGRPRESET.forEach(function(cap){grantsOn().push({cap:cap,to:'class',id:mgCls.id,by:(me()||{}).id||'',at:TODAY})});
+    toast(mn+' can now sign in, carrying the '+MGRCLASS+' classification (password demo1234)');
   }
   save();paint();
 });
@@ -5012,6 +5206,11 @@ function setViewAs(id){
 load();
 if(DB.session&&DB.session.platform){ui.page=PLATPAGES[location.hash.slice(1)]?location.hash.slice(1):NAV.platform[0][0]}
 else if(DB.session&&DB.biz[DB.session.biz]){
+  /* §2.3: retire the manager tier in the DATA before anything reads a role - the lines below index
+     PAGES and NAV by role, and there is no longer a 'manager' entry to find. Idempotent; a no-op once done.
+     NOTE: this hook belongs HERE, in events_new.js, NOT in the tail of portals2.js - the build
+     regenerates that tail from this file, so a call written there is silently dropped. */
+  migrateManagerTier();
   CURB=DB.biz[DB.session.biz];
   var hp=location.hash.slice(1),r0=me()&&me().role;
   if(!r0){DB.session=null;CURB=null}else{ui.loc=activeLocs()[0].id;ui.page=(hp&&hp!=='client'&&PAGES[r0][hp])?hp:homeOf(r0)}
