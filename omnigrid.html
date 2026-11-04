@@ -465,6 +465,21 @@ input[type=email],input[type=password],input[type=number],input[type=date],input
 
 /* ===== booking and pricing: service cards ===== */
 .svccard{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:16px;display:grid;gap:14px;min-width:0}
+/* skills checklist (E2): the editor rows and the marking spots. 48px floor and manipulation,
+   so a mark can be made with a wet thumb without a double-tap zoom (see 13). */
+.skilllist{display:grid;gap:6px}
+.skillrow{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:48px;align-items:center;min-width:0}
+.skilladd{align-items:end}
+.skillcard{display:grid;gap:10px}
+.skillgrp{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:10px}
+.skillchips{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.skillchip{display:grid;gap:2px;text-align:left;min-height:48px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card,transparent);color:inherit;font:inherit;cursor:pointer;touch-action:manipulation;min-width:0}
+.skillchip:hover{border-color:var(--ink)}
+.skillchip.on{border-color:var(--ok);background:var(--ok-soft)}
+.skillchip span{font-size:14px;font-weight:600;overflow-wrap:anywhere}
+.skillchip small{font-size:12px;color:var(--muted)}
+.skillchip.on small{color:var(--ok)}
+@media (max-width:520px){.skillchips{grid-template-columns:minmax(0,1fr)}}
 .svchead{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,.8fr) auto;gap:12px;align-items:start}
 .svcnew{display:grid;gap:12px}
 .svcnew .svchead{grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr) minmax(0,.9fr)}
@@ -3106,6 +3121,9 @@ function pgClient(){
   h+=pageHead(PORTAL[u.role],esc(name),(age!==''&&age!=null?'Age '+esc(age)+' · ':'')+esc(L.client)+(acct?' · family of '+esc(acct.name):' · walk-in, no account'));
   h+='<div class="stats4"><div class="card stat"><div class="eyebrow">Attended</div><b class="mono">'+done+'</b></div><div class="card stat"><div class="eyebrow">Upcoming</div><b class="mono">'+up.length+'</b></div><div class="card stat"><div class="eyebrow">No-shows</div><b class="mono">'+ns+'</b></div><div class="card stat"><div class="eyebrow">Late cancels</div><b class="mono">'+late+'</b></div></div>';
   h+='<div class="cols"><div class="stack">';
+  /* staff only: this is the instructor's working picture for handover, not a report card. Whether
+     a family ever sees a swimmer's skills is exactly what E4's pass/fail switch governs. */
+  if(u.role!=='customer')h+=skillPanel(key,bs);
   h+='<div class="card" style="display:grid;gap:10px"><h3>Upcoming</h3>'+(up.length?up.map(row).join(''):'<p class="muted sm">Nothing booked ahead.</p>')+'</div>';
   h+='<div class="card" style="display:grid;gap:10px"><h3>History</h3>'+(past.length?past.slice(0,30).map(row).join(''):'<p class="muted sm">No past bookings yet.</p>')+(past.length>30?'<p class="muted sm">Showing the latest 30.</p>':'')+'</div>';
   h+='</div><aside class="stack">';
@@ -3506,7 +3524,7 @@ function lenChips(base,cur){
   return '<div><div class="eyebrow" style="margin-bottom:8px">Length</div><div class="lenchips" role="group" aria-label="Length">'+svcLens(base).map(function(l){return '<button class="chip" aria-pressed="'+(l.min===cur.min)+'" data-a="clen" data-id="'+base.id+'" data-v="'+l.min+'">'+l.min+' min · '+money(l.cents)+'</button>'}).join('')+'</div></div>';
 }
 /* ---------- Booking and pricing: every offering is one collapsible .rsec bar; opening it shows a three-step rule wizard. Bars and steps keep minimum heights so opening, closing or changing step never moves the page. ---------- */
-var SVC_STEPS=[[1,'Roles and capacity'],[2,'Booking rules'],[3,'Pricing and packages']];
+var SVC_STEPS=[[1,'Roles and capacity'],[2,'Booking rules'],[3,'Pricing and packages'],[4,'Skills checklist']];
 /* Session planner (group offerings): fixed dates, a registration cutoff, one class start time and the days it meets. Built from .rlist / .rrow so every row keeps its minimum height. */
 function groupPlanner(sv,P,D){
   var b=sv.bk||{},on=function(i){return !(b.days&&b.days.length)||b.days.indexOf(i)>=0},L=LB();
@@ -3523,12 +3541,54 @@ function svcCap(s){var n=Math.round(+s.cap);return n>=1&&n<=50?n:1}
 function svcDesc(s){return String(s.desc||'').trim()}
 function capPill(s){var n=svcCap(s),L=LB();return '<span class="badge n capill">Capacity: '+n+' ('+(n===1?'Single ':'Group ')+esc(L.session)+')</span>'}
 function svcIsOpen(id){return !!(ui.svcOpen&&ui.svcOpen[id])}
-function svcStepOf(id){var n=ui.svcStep&&ui.svcStep[id];return n===2||n===3?n:1}
+function svcStepOf(id){var n=ui.svcStep&&ui.svcStep[id];return n===2||n===3||n===4?n:1}
 function svcBar(id,title,sub,badges,open){
   return '<button type="button" class="rrow svchbar" aria-expanded="'+open+'" aria-controls="svd'+id+'" data-a="svcopen" data-id="'+id+'"><span class="rwho"><b>'+esc(title)+'</b><span class="muted sm svcdesc">'+esc(sub)+'</span></span>'+badges+CHEV+'</button>';
 }
 function svcSteps(id,st){
   return '<div class="svcsteps" role="group" aria-label="Rule steps">'+SVC_STEPS.map(function(x){return '<button type="button" class="svcstep" aria-pressed="'+(st===x[0])+'"'+(st===x[0]?' aria-current="step"':'')+' data-a="svcstep" data-id="'+id+'" data-v="'+x[0]+'"><i>'+x[0]+'</i><span>'+x[1]+'</span></button>'}).join('')+'</div>';
+}
+/* ---------- skills checklist (E2): per offering, opt-in, and marked DURING a lesson.
+   A skill is evidence, never a grade - a tick does not move anyone on, because the pass is a
+   separate act of judgement (12.11). Marks live on the swimmer and keep the date they were
+   made, so the next instructor can see what is already done and what still needs work.
+   Scoped per offering for now; when B1 (courses) lands, a skill gains a level and the list
+   moves there - nothing here has to be undone for that. ---------- */
+function skillBlock(sv){
+  var L=LB(),on=!!sv.skillsOn,list=sv.skills||[],ask=!!(ui.skillAdd&&ui.skillAdd[sv.id]);
+  var h='<div class="svcbk" role="group" aria-label="Skills checklist"><div class="row sp"><div class="svclbl"><b>Skills checklist</b><span class="sm muted">'+
+    (on?'Instructors can tick these off while they teach. Each mark keeps the date it was made, so whoever takes the next '+esc(L.session.toLowerCase())+' knows where to start. A tick never moves anyone on - that is a separate judgement.'
+       :'Off. Turn it on to let instructors tick skills off during a '+esc(L.session.toLowerCase())+'. Nothing is graded, and a tick never moves anyone on.')+
+    '</span></div><button class="lc" aria-pressed="'+on+'" data-a="skillOn" data-id="'+sv.id+'">'+(on?'On':'Off')+'</button></div>';
+  if(!on)return h+'</div>';
+  h+='<div class="skilllist">'+(list.length?list.map(function(k){
+      return '<div class="row sp skillrow"><span>'+esc(k.name)+'</span><button class="btn sm danger" data-a="skillDel" data-id="'+sv.id+'" data-k="'+esc(k.id)+'">Remove</button></div>'}).join('')
+    :'<p class="sm muted">No skills yet. Add the exit skills this '+esc(L.group.toLowerCase())+' works towards.</p>')+'</div>';
+  /* the add form keeps NO model, like pkgAdd and addSvc: the value is read from the DOM at
+     submit, so nothing has to survive a repaint - and it carries no data-c, so typing in it
+     never triggers one. */
+  h+= ask
+    ? '<form data-f="addSkill" data-id="'+sv.id+'" class="row skilladd"><label class="field grow" for="skn_'+sv.id+'">Skill<input id="skn_'+sv.id+'" type="text" maxlength="80" placeholder="e.g. Float on the back for 30 seconds" required></label><div class="row" style="align-self:end;gap:6px"><button class="btn pri" type="submit">Add skill</button><button class="btn" type="button" data-a="skilladdclose" data-id="'+sv.id+'">Cancel</button></div></form>'
+    : '<div><button class="btn" data-a="skilladdopen" data-id="'+sv.id+'">+ Add a skill</button></div>';
+  return h+'</div>';
+}
+function marksOf(key){var m=B().marks||(B().marks={});return m[key]||(m[key]={})}
+/* every offering this swimmer is booked into that is tracking skills, in the order they appear */
+function skillSvcsFor(bs){var out=[];bs.forEach(function(k){var sv=k.svc?svcOf(k.svc):null;if(sv&&sv.skillsOn&&(sv.skills||[]).length&&out.indexOf(sv)<0)out.push(sv)});return out}
+/* the marking surface: it sits on the swimmer's own page, which is where a name leads, so the
+   mark is made while the child is in the water rather than from memory afterwards. */
+function skillPanel(key,bs){
+  var svs=skillSvcsFor(bs);
+  if(!svs.length)return '';
+  var h='<div class="card skillcard"><h3>Skills</h3><p class="sm muted">Tap a skill when you see it done. The date is kept, so the next instructor knows where to start.</p>';
+  svs.forEach(function(sv){
+    var done=(sv.skills||[]).filter(function(k){return marksOf(key)[k.id]}).length;
+    h+='<div class="skillgrp"><div class="row sp"><b>'+esc(sv.name)+'</b><span class="badge '+(done===sv.skills.length?'ok':'n')+'">'+done+' of '+sv.skills.length+'</span></div>'+
+      '<div class="skillchips">'+sv.skills.map(function(k){
+        var d=marksOf(key)[k.id];
+        return '<button class="skillchip'+(d?' on':'')+'" aria-pressed="'+(!!d)+'" data-a="skilmark" data-id="'+k.id+'" data-k="'+esc(key)+'"><span>'+esc(k.name)+'</span>'+(d?'<small>Marked '+esc(d)+'</small>':'<small>Not yet</small>')+'</button>'}).join('')+'</div></div>';
+  });
+  return h+'</div>';
 }
 function svcCard(s){
   var L=LB(),open=svcIsOpen(s.id),st=svcStepOf(s.id),pks=(B().packages||[]).filter(function(p){return p.svc===s.id}),one=soldSingle(s),d=svcDesc(s);
@@ -3545,13 +3605,15 @@ function svcCard(s){
   }else if(st===2){
     var t=bkText(s);
     body='<div class="svcbk" role="group" aria-label="Booking rules"><div class="svclbl">'+bkTitle(s,'Local booking rules')+'<span class="sm muted">'+(t?esc(t):'Uses the business-wide defaults. Set start times, notice, days and limits for just this offering.')+'</span></div>'+bkFields(s,'edit')+'</div>';
-  }else{
+  }else if(st===3){
     body=moreBlock(s.id)+
       '<div class="svcpk" role="group" aria-label="Package sale"><div class="row sp"><b>Package sale</b><span class="badge n">'+pks.length+' package'+(pks.length===1?'':'s')+'</span></div>'+
       (pks.length?'<div class="pklist">'+pks.map(pkgRow).join('')+'</div>':'<p class="sm muted">This offering is sold as a package. Add the package customers buy.</p>')+pkgAdd(s.id)+'</div>'+
       '<div class="svcline" role="group" aria-label="Individual sale"><div class="svclbl"><b>Also sell one at a time</b><span class="sm muted">'+(one?'Customers can book a single '+esc(L.session.toLowerCase())+' without a package':'Off. Customers need package credits to book this')+'</span></div>'+
       (one?'<label class="field" for="sp'+s.id+'">Single price ($)<input id="sp'+s.id+'" type="number" min="0" step="0.5" value="'+(s.cents/100)+'" data-c="svc" data-id="'+s.id+'" data-field="price"></label>':'')+
       '<button class="lc" aria-pressed="'+one+'" data-a="svcSingle" data-id="'+s.id+'">'+(one?'On':'Off')+'</button></div>';
+  }else{
+    body=skillBlock(s);   /* step 4: the skills checklist (E2) */
   }
   return '<section class="card rsec svcsec">'+bar+'<div class="svcdrawer" id="svd'+s.id+'">'+basics+svcSteps(s.id,st)+'<div class="svcbody">'+body+'</div></div></section>';
 }
@@ -4258,13 +4320,24 @@ document.addEventListener('click',function(e){
   else if(a==='svcDel'){toast('Services are never deleted, so past bookings and receipts stay complete. Switch it to Inactive to hide it')}
   else if(a==='inacc'){ui.inOpen=!ui.inOpen}
   else if(a==='svcopen'){var oid=el.dataset.id;if(oid==='_any'||svcOf(oid)){ui.svcOpen=ui.svcOpen||{};ui.svcOpen[oid]=!ui.svcOpen[oid]}}
-  else if(a==='svcstep'){var sid2=el.dataset.id,sv2=+el.dataset.v;if(svcOf(sid2)&&(sv2===1||sv2===2||sv2===3)){ui.svcStep=ui.svcStep||{};ui.svcStep[sid2]=sv2}}
+  else if(a==='svcstep'){var sid2=el.dataset.id,sv2=+el.dataset.v;if(svcOf(sid2)&&(sv2===1||sv2===2||sv2===3||sv2===4)){ui.svcStep=ui.svcStep||{};ui.svcStep[sid2]=sv2}}
   else if(a==='defacc'){ui.defOpen=!ui.defOpen}
   else if(a==='svcMode'){
     if(!canRules())return;var sa=svcOf(el.dataset.id);if(!sa)return;
     var cu=allocOf(sa);cu.mode=el.dataset.v==='provider'?'provider':'group';
     sa.alloc=cu;
     if(allocReady(sa))submitOffering(sa);else toast('Pick who delivers '+sa.name+'. Until then customers cannot book it');
+  }
+  else if(a==='skillOn'){if(!canRules())return;var sk=svcOf(el.dataset.id);if(!sk)return;sk.skillsOn=!sk.skillsOn;if(!sk.skillsOn)ui.skillAdd&&(ui.skillAdd[sk.id]=false);save();paint();
+    toast(sk.skillsOn?'Skills checklist on for '+sk.name:'Skills checklist off - nothing was deleted')}
+  else if(a==='skillDel'){if(!canRules())return;var sd=svcOf(el.dataset.id);if(!sd)return;sd.skills=(sd.skills||[]).filter(function(x){return x.id!==el.dataset.k});save();paint()}
+  else if(a==='skilladdopen'){ui.skillAdd=ui.skillAdd||{};ui.skillAdd[el.dataset.id]=true;paint()}
+  else if(a==='skilladdclose'){ui.skillAdd=ui.skillAdd||{};ui.skillAdd[el.dataset.id]=false;paint()}
+  else if(a==='skilmark'){   /* mark or unmark one skill, on the swimmer's own page */
+    if(!(me().role==='employee'||canSupervise()))return;   /* staff only: a customer never marks themselves */
+    var md=marksOf(el.dataset.k),sid=el.dataset.id;
+    if(md[sid])delete md[sid];else md[sid]=TODAY;
+    save();paint();
   }
   else if(a==='bkclearhours'){if(!canRules())return;var sch=svcOf(el.dataset.id);if(!sch||!sch.bk)return;var cb={};Object.keys(sch.bk).forEach(function(k){cb[k]=sch.bk[k]});cb.early='';cb.late='';sch.bk=bkClean(cb);submitOffering(sch);toast('Daily hour limits cleared')}
   else if(a==='bktoggle'){if(!canRules())return;ui.bkOpen=ui.bkOpen||{};ui.bkOpen[el.dataset.id]=!ui.bkOpen[el.dataset.id]}
@@ -4475,6 +4548,17 @@ document.addEventListener('submit',function(e){
   else if(f==='pbiz'&&DB.session.platform){ui.pErr=createBusiness({name:v('pb1'),slug:v('pb2'),owner:v('pb3'),email:v('pb4'),pw:v('pb5')});if(!ui.pErr)toast('Business created. Give its super user the code and temporary password')}
   else if(f==='padmin'&&DB.session.platform){var pe=v('pa2').trim().toLowerCase();if(!v('pa1').trim()||pe.indexOf('@')<1||v('pa3').length<8)ui.pErr='Enter a name, an email and a password of 8 or more characters.';else if(DB.platform.admins.some(function(x){return x.email===pe}))ui.pErr='That email is already a platform admin.';else{DB.platform.admins.push({id:uid('pa'),email:pe,name:v('pa1').trim(),pw:v('pa3')});audit('Added platform admin','',pe);ui.pErr='';toast('Platform admin added')}}
   else if(f==='padd'&&me().role==='customer'){var an=v('pnn').trim();if(!an)return;var au=me();au.people=au.people||[];au.people.push({id:uid('p'),name:an,age:parseAge(v('pna'))});toast(an+' added')}
+  else if(f==='addSkill'&&canRules()){
+    /* like pkgAdd and addSvc: the name is read from the DOM here, never held in a model, so
+       nothing typed can be lost to a repaint while the form is open. */
+    var ssv=svcOf(e.target.dataset.id);if(!ssv)return;
+    var skn=String(v('skn_'+ssv.id)||'').trim().replace(/\s+/g,' ');
+    if(!skn)return;
+    ssv.skills=ssv.skills||[];
+    if(ssv.skills.some(function(x){return x.name.toLowerCase()===skn.toLowerCase()})){toast('That skill is already listed');return}
+    ssv.skills.push({id:'sk'+ssv.id+'-'+uid(''),name:skn.slice(0,80)});
+    ui.skillAdd&&(ui.skillAdd[ssv.id]=false);save();paint();toast('Skill added');
+  }
   else if(f==='addPkg'&&me().role!=='customer'){
     var psv=e.target.dataset.svc||'',pk0=psv||'any',psvc=svcOf(psv);
     if(psv&&!psvc)return;
