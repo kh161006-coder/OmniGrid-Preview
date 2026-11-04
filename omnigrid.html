@@ -3350,63 +3350,6 @@ function pgPeople(){
   return h;
 }
 /* ---------- MANAGER and OWNER: booking and pricing ---------- */
-
-function slotGrid(x){
-  return '<div class="times">'+cellsOf(x).map(function(m){
-    var bk=bookedIn(x,m,m+CELL),blk=isBlocked(x,m),past=isPastSlot(x.date,m);
-    if(bk.length)return '<button class="tm" disabled>'+fm(m)+'<small>'+esc(bk[0].client)+(bk.length>1?' +'+(bk.length-1):'')+'</small></button>';
-    return '<button class="tm'+(blk?' blocked':'')+'" '+(past?'disabled':'')+' data-a="slotblock" data-id="'+x.id+'" data-t="'+m+'" aria-label="'+fm(m)+': '+(blk?'blocked. Tap to open':'open. Tap to block')+'">'+fm(m)+'<small>'+(past?'Passed':blk?'Blocked':'Open')+'</small></button>';
-  }).join('')+'</div>';
-}
-/* ---------- EMPLOYEE: my shifts with editable time slots ---------- */
-/* ---------- MANAGER and OWNER: shift drawer on the master schedule ---------- */
-function drawer(){
-  var D=ui.drawer,x=D&&shiftOf(D.id);if(!x)return '';
-  if(!bookableShift(x)){var s0=staffOf(x.sid);return '<div class="scrim" data-a="close"><div class="sheet" role="dialog" aria-modal="true" aria-label="Shift details"><div class="row sp"><div class="row" style="flex-wrap:nowrap;gap:12px">'+avatar(s0,40)+'<div><h3 style="font-size:18px">'+esc(s0.name)+'</h3><div class="muted sm">'+esc(clsOf(x.cls).name)+' · '+esc(locOf(x.loc).name)+'</div></div></div><button class="btn sm" data-a="close">Close</button></div><div class="row" style="gap:8px"><span class="badge n">'+DAYL[dIdx(x.date)]+', '+fdate(x.date)+'</span><span class="badge n mono">'+fspan(x.s,x.e)+'</span></div><p class="muted">'+esc(clsOf(x.cls).name)+' shifts are not open for customer booking. A super user can change this on the Classifications page.</p></div></div>'}
-  var s=staffOf(x.sid),d=pd(x.date),client=ui.lens==='client',L=LB(),editing=ui.slotMode==='edit';
-  var sv=svcOf(ui.msvc)||activeSvcs()[0],len=sv?sv.min:30,free=freeMin(x),can=shortest();
-  var starts=freeStarts(x,len).map(function(t){var past=isPastSlot(x.date,t);return '<button class="tm" '+(past?'disabled':'')+' aria-pressed="'+(ui.pick===t)+'" data-a="pickslot" data-t="'+t+'">'+fm(t)+(past?'<small>Passed</small>':'')+'</button>'}).join('');
-  return '<div class="scrim" data-a="close"><div class="sheet" role="dialog" aria-modal="true" aria-label="Shift details">'+
-  '<div class="row sp" style="align-items:flex-start"><div class="row" style="flex-wrap:nowrap;gap:12px">'+avatar(s,40)+'<div><h3 style="font-size:18px">'+esc(s.name)+'</h3><div class="muted sm">'+esc(s.title)+' · '+esc(locOf(x.loc).name)+'</div></div></div><button class="btn sm" data-a="close" aria-label="Close">Close</button></div>'+
-  '<div class="row" style="gap:8px"><span class="badge n">'+DAYL[dIdx(x.date)]+', '+MON[d.getMonth()]+' '+d.getDate()+'</span><span class="badge n mono">'+fspan(x.s,x.e)+'</span><span class="badge '+(free>=can?'ok':'warn')+'">'+(free>=can?fdur(free)+' open':'Fully booked')+'</span></div>'+
-  '<div class="seg" role="group" aria-label="Mode"><button aria-pressed="'+!editing+'" data-a="slotmode" data-v="book">Book '+indef(L.session)+esc(L.session.toLowerCase())+'</button><button aria-pressed="'+editing+'" data-a="slotmode" data-v="edit">Edit time slots</button></div>'+
-  (editing?'<div class="row sp"><p class="sm muted" style="max-width:34ch">Tap an open block to hold it back from booking, or tap again to open it.</p>'+onlineToggle(x)+'</div><div><div class="eyebrow" style="margin-bottom:8px">Time blocks</div>'+slotGrid(x)+'</div>':
-    (sv?'<label class="field" for="msv">Service<select id="msv" data-c="msvc">'+activeSvcs().map(function(v){return '<option value="'+v.id+'"'+(v.id===sv.id?' selected':'')+'>'+esc(v.name)+' · '+fdur(v.min)+' · '+money(v.cents)+'</option>'}).join('')+'</select></label>':'<p class="sm muted">No services set up yet. Add one on Booking and pricing.</p>')+
-    '<div><div class="eyebrow" style="margin-bottom:8px">Choose a start time · '+fdur(len)+'</div>'+(starts?'<div class="times">'+starts+'</div>':'<p class="sm muted">No room for '+fdur(len)+' in this shift.</p>')+'</div>'+
-    '<div class="fgrid"><label class="field" for="cl">'+esc(L.client)+' name<input id="cl" type="text" placeholder="Name" value="'+esc(ui.client)+'" data-c="client" autocomplete="off"></label><label class="field" for="cage">Age<input id="cage" type="number" min="0" max="120" inputmode="numeric" value="'+esc(ui.cage)+'" data-c="cage" placeholder="Optional"></label></div>'+
-    '<button class="btn pri" style="width:100%;padding:12px" data-a="book" '+(ui.pick==null?'disabled':'')+'>'+(ui.pick==null?'Select a time to continue':'Book '+fm(ui.pick)+' with '+esc(s.name.split(' ')[0])+(sv?' · '+money(sv.cents):''))+'</button><p class="sm muted">Bookings made here are marked unpaid, to settle at the facility.</p>'+
-    '<div><div class="eyebrow" style="margin-bottom:8px">Appointments in this shift</div>'+lessonGrid(x)+'</div>')+'</div></div>';
-}
-function startMs(k){return slotMs(k.date,k.t)}
-function whoText(k){var t=esc(k.client)+(k.age!==''&&k.age!=null?' <span class="muted">· age '+esc(k.age)+'</span>':'');return me()&&me().role!=='customer'&&canSeeClient(clientKey(k))?clientLink(k,t):t}
-function personPicker(u){
-  var pp=u.people||[],cur=curPid(u),L=LB();
-  var h='<div><div class="eyebrow" style="margin-bottom:8px">Who is this for?</div>';
-  if(pp.length)h+='<div class="chipsrow" role="group" aria-label="Choose a person">'+pp.map(function(q){return '<button class="lc" aria-pressed="'+(cur===q.id)+'" data-a="cperson" data-id="'+q.id+'">'+esc(q.name)+(q.age!==''&&q.age!=null?' · '+q.age:'')+'</button>'}).join('')+'<button class="lc" aria-pressed="'+(cur==='new')+'" data-a="cperson" data-id="new">+ Someone new</button></div>';
-  if(cur==='new')h+='<div class="fgrid" style="margin-top:10px"><label class="field" for="cl">'+esc(L.client)+' name<input id="cl" type="text" value="'+esc(ui.client)+'" data-c="client" autocomplete="off"></label><label class="field" for="cage">Age<input id="cage" type="number" min="0" max="120" inputmode="numeric" value="'+esc(ui.cage)+'" data-c="cage" placeholder="Optional"></label></div>';
-  return h+'</div>';
-}
-function pgPeople(){
-  var u=me(),L=LB(),pp=u.people||[];
-  var h=pageHead('Customer portal','My people','Who you book for: a child, a family member or yourself. Their name and age are shown to the '+LB().staff.toLowerCase()+'.');
-  h+='<div class="stack">'+(pp.length?pp.map(function(q){var pst=passOf('p:'+q.id);return '<div class="card" style="display:grid;gap:10px"><div class="fgrid"><label class="field" for="pn'+q.id+'">Name<input id="pn'+q.id+'" type="text" value="'+esc(q.name)+'" data-c="pfield" data-id="'+q.id+'" data-field="name"></label><label class="field" for="pa'+q.id+'">Age<input id="pa'+q.id+'" type="number" min="0" max="120" inputmode="numeric" value="'+esc(q.age)+'" data-c="pfield" data-id="'+q.id+'" data-field="age"></label></div><div class="row sp"><span class="muted sm">'+B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length+' booking'+(B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length===1?'':'s')+'</span>'+/* E4: a family sees a standing only when there IS one - never "not recorded", because where pass or fail is off the child is simply not being scored, and an empty badge would score them. */
-      (pst?'<span class="badge '+(pst==='passed'?'ok':'bad')+'">'+(pst==='passed'?'Passed':'Not passed')+'</span>':'')+
-      '<button class="btn sm danger" data-a="pdel" data-id="'+q.id+'">Remove</button></div></div>'}).join(''):'<div class="card flat muted">Nobody saved yet. Add someone below, or when you book.</div>')+'</div>';
-  h+='<form class="card" data-f="padd" style="display:grid;gap:14px"><h3>Add a person</h3><div class="fgrid"><label class="field" for="pnn">Name<input id="pnn" type="text" required></label><label class="field" for="pna">Age<input id="pna" type="number" min="0" max="120" inputmode="numeric"></label></div><div><button class="btn pri" type="submit">Add</button></div></form>';
-  return h;
-}
-function checkout(){
-  var C=ui.cb,x=C&&shiftOf(C.id),sv=svcOf(C&&C.svc);if(!x||!sv)return '';
-  var s=staffOf(x.sid),L=LB(),d=pd(x.date);
-  return '<div class="scrim" data-a="close"><div class="sheet" role="dialog" aria-modal="true" aria-label="Confirm and pay">'+
-  '<div class="row sp"><h3 style="font-size:20px">Confirm your booking</h3><button class="btn sm" data-a="close">Close</button></div>'+
-  '<div class="card flat" style="display:grid;gap:8px;background:var(--surface2)"><div class="row sp"><b>'+esc(sv.name)+'</b><b class="mono">'+money(sv.cents)+'</b></div>'+
-  '<div class="sm muted">'+DAYL[dIdx(x.date)]+', '+MON[d.getMonth()]+' '+d.getDate()+' · <span class="mono">'+fm(C.t)+' – '+fm(C.t+sv.min)+'</span> ('+fdur(sv.min)+')</div><div class="sm muted">With '+esc(s.name)+' · '+esc(locOf(x.loc).name)+'</div></div>'+
-  personPicker(me())+
-  '<p class="sm muted">Free cancellation until '+B().rules.cancelHours+' hours before the start. After that a '+B().rules.lateFeePct+'% late fee applies, and a no-show is charged '+B().rules.noShowFeePct+'%. Payment is simulated in this prototype, so no card is charged.</p>'+
-  '<button class="btn pri" style="width:100%;padding:12px" data-a="cpay">Pay '+money(sv.cents)+' and book</button></div></div>';
-}
-/* ---------- MANAGER and OWNER: booking and pricing ---------- */
 function soldSingle(s){return s.single!==false}
 /* length is a plain number: 10-minute blocks, 10 to 240 */
 function lenField(id,val,data){
