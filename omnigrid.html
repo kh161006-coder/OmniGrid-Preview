@@ -1604,7 +1604,7 @@ function addRange(dstr,loc){
 
 /* ---------- sign-in ---------- */
 function resetView(){
-  ui.loc=activeLocs()[0].id;ui.week=0;ui.open=null;ui.drawer=null;ui.editStaff=null;ui.addStaff=false;ui.lens='client';ui.cb=null;ui.cart=[];ui.review=false;ui.buy=null;ui.cs=null;ui.cdate=null;ui.cmonth=0;ui.pid=null;ui.cage='';ui.client='';ui.bk=null;ui.iview='day';ui.slotMode='book';ui.msvc=null;ui.hcls=null;ui.addR=null;
+  ui.loc=activeLocs()[0].id;ui.week=0;ui.open=null;ui.drawer=null;ui.editStaff=null;ui.addStaff=false;ui.lens='client';ui.hat='biz';ui.cb=null;ui.cart=[];ui.review=false;ui.buy=null;ui.cs=null;ui.cdate=null;ui.cmonth=0;ui.pid=null;ui.cage='';ui.client='';ui.bk=null;ui.iview='day';ui.slotMode='book';ui.msvc=null;ui.hcls=null;ui.addR=null;
 }
 function signIn(slug,email,pw){
   if(String(slug).trim().toLowerCase()===PLAT_SLUG){
@@ -1749,6 +1749,28 @@ function canSupervise(){var u=me();return !!(u&&(u.role==='owner'||u.role==='man
    charge. Deliberately NOT canManage(k) on its own: that returns true for a CUSTOMER, because
    canEditShift() only tests `role!=='employee'`. A customer must never reach this. */
 function canRelease(k){var u=me();if(!u)return false;if(canSupervise())return true;return u.role==='employee'&&canManage(k)}
+/* ---------- solo identity (roles §11a, §15) ----------
+   A super user may also hold the TEACH job. That is a staff record attached to their OWN account -
+   deliberately NOT a second login, which is the whole point of §11a's "one login, two hats".
+   With it they can publish availability and be booked like any provider. */
+function myStaff(){var u=me();return u&&u.staffId?staffOf(u.staffId):null}
+function iTeach(){return !!myStaff()}
+/* The act that grants it. Returns the new staff id, or null when there is nothing to do. */
+function iAlsoTeach(){
+  var u=me();if(!u||u.role!=='owner'||u.staffId)return null;
+  var sid=B().id+'-s'+uid('');
+  /* The record must carry the SAME fields a manager's "add a person" form builds - active:true in
+     particular, because activeStaff() filters on it and an inactive record is invisible on the
+     calendar, the roster and everywhere else. Prefer a classification that needs no certificate,
+     so a super user is never quietly blocked from teaching by a cert they have not entered yet. */
+  var book=B().classes.filter(function(c){return c.bookable});
+  var firstCls=book.filter(function(c){return !c.reqCert})[0]||book[0],firstLoc=(activeLocs()[0]||{}).id;
+  B().staff.push({id:sid,name:u.name,title:LB().staff,c:'e1',phone:'',maxHours:40,payCents:0,
+    cls:firstCls?[firstCls.id]:[],locs:firstLoc?[firstLoc]:[],active:true,certs:[]});
+  B().avail[sid]={};B().pref[sid]={};
+  u.staffId=sid;   /* the link that makes them a provider */
+  return sid;
+}
 function adminBanner(){
   var u=me();if(!u||!canSupervise()||ui.page==='booking')return '';
   return '<div class="admin-intercept-action-row fade-in" role="region" aria-label="Administrative shortcut"><div class="intercept-meta-message"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/></svg><p><strong>Administrative session:</strong> signed in as '+ROLEWORD[u.role]+' for '+esc(B().name)+'. Booking limits and payment holds are set in Booking and pricing.</p></div><button class="btn-intercept-redirect-heavy" data-a="nav" data-v="booking">Open service limits</button></div>';
@@ -1878,7 +1900,7 @@ function mirrorStaff(st){
   });
 }
 /* Save Offering / Booking Set -> POST /api/services (new) or PATCH /api/services/:id (saved before). The API takes the length, price and sold-individually fields; hold, interval and provider rules stay in the saved offering and its envelope. */
-/* the three saved rule fields of a service: whole numbers only. Fields the owner never set are left out, so the server keeps its defaults. */
+/* the three saved rule fields of a service: whole numbers only. Fields the super user never set are left out, so the server keeps its defaults. */
 function serviceRuleFields(sv){
   var bk=sv.bk||{},f={},h=Math.round(+bk.hold),e=Math.round(+bk.every);
   f.hold_back_minutes=(isFinite(h)&&h>=10&&h<=10080)?h:0;
@@ -1922,7 +1944,7 @@ function serverSignIn(slug,email,pw){
         var bid=m.body.user.business_id,bn=m.body.business&&m.body.business.name||slug,u=r.body.user;REMOTE.businessId=bid;
         var biz=allBiz().filter(function(b){return b.remoteId===bid})[0],secret=randomLocalSecret();
         if(!biz){
-          var err=createBusiness({name:bn,slug:slug,owner:u.role==='owner'?(u.full_name||'Owner'):'Owner',email:u.role==='owner'?email:'owner@'+slug+'.local',pw:secret,vertical:pubVertical()});
+          var err=createBusiness({name:bn,slug:slug,owner:u.role==='owner'?(u.full_name||'Super user'):'Super user',email:u.role==='owner'?email:'owner@'+slug+'.local',pw:secret,vertical:pubVertical()});
           if(err){REMOTE=null;return err}
           biz=allBiz().filter(function(b){return b.slug===slug})[0];if(!biz){REMOTE=null;return bad}
           biz.remoteId=bid;
@@ -2230,6 +2252,10 @@ function weekDates(date){var m=pd(weekMon(date)),a=[];for(var i=0;i<7;i++)a.push
 function calView(){return ui.cview==='day'?'day':ui.cview==='month'?'month':'week'}
 function calWho(){
   var l=calStaff();if(!l.length)return null;
+  /* §11a: a super user who also teaches, working in the teaching hat, is publishing their OWN
+     availability. Without this the fallback below picks whoever is first on the list - somebody
+     else - and the windows would be written for the wrong person. */
+  if(me().role==='owner'&&iTeach()&&ui.hat==='teach')return l.filter(function(s){return s.id===me().staffId})[0]||l[0];
   if(me().role==='employee')return l[0];
   return l.filter(function(s){return s.id===ui.cwho})[0]||l[0];
 }
@@ -2532,7 +2558,7 @@ function brushBar(){
   return '<div class="brushbar" role="group" aria-label="Paintbrush: choose '+esc(L.staff.toLowerCase())+'"><div class="brushhd"><b>Paintbrush</b><span class="sm muted">'+(cur?'Click a published block to give it to '+esc(cur.name)+'. Press Esc to put the brush down.':'Choose '+esc(L.staff.toLowerCase())+', then click a block.')+'</span></div><div class="brushtoks">'+
     (list.length?list.map(function(s){return '<button type="button" class="btok" style="--c:var(--'+s.c+')" aria-pressed="'+(!!cur&&cur.id===s.id)+'" data-a="brush" data-v="'+s.id+'">'+avatar(s,22)+'<span>'+esc(s.name)+'</span></button>'}).join(''):'<span class="sm muted">No one is approved for this site.</span>')+'</div></div>';
 }
-/* stamp the chosen employee onto one block: only the owner changes (the block keeps its id, times, site and role, and every availability rule is checked again). Returns true when something changed. */
+/* stamp the chosen employee onto one block: only the super user changes (the block keeps its id, times, site and role, and every availability rule is checked again). Returns true when something changed. */
 function assignBlock(id){
   var to=brushStaff();
   if(!to){toast('Choose '+LB().staff.toLowerCase()+' in the Paintbrush bar first');return false}
@@ -2978,13 +3004,22 @@ function shell(inner){
   var u=me(),b=B(),nav=navFor(u.role),sup=canSupervise(),alerts=sup?alertsCount():0;   /* supervisors get the three-panel workspace: nav | AI rail + page | This Week */
   return '<div class="shell'+(sup?' wide':'')+'" data-portal="'+u.role+'"><aside class="side"><div class="sbrand">'+MARK+'OmniGrid<button class="btn sm mobout" style="margin-left:auto" data-a="logout">Sign out</button></div>'+
   '<div class="biz"><span class="lg">'+esc(b.name[0])+'</span><div style="min-width:0"><b>'+esc(b.name)+'</b><span>Code: '+esc(b.slug)+'</span></div></div>'+
-  viewAsBox()+'<div class="ptag" style="padding:0 2px">'+PORTAL[u.role]+'</div>'+
+  viewAsBox()+hatSwitch()+'<div class="ptag" style="padding:0 2px">'+PORTAL[u.role]+'</div>'+
   '<nav class="nav" aria-label="'+PORTAL[u.role]+'">'+nav.map(function(n){
     var badge=(n[0]==='overview'&&alerts)?'<span class="nb2" title="'+alerts+' compliance alerts">'+alerts+'</span>':'';
     return '<button class="nl" '+(n[0]===ui.page?'aria-current="page"':'')+' data-a="nav" data-v="'+n[0]+'">'+esc(navLabel(u.role,n))+badge+'</button>';
   }).join('')+'</nav>'+
   '<div class="me"><div class="who2"><span class="ini">'+esc(initials(u.name))+'</span><div style="min-width:0"><b>'+esc(u.name)+'</b><span>'+ROLEWORD[u.role]+(u.role==='employee'?' · '+esc(staffOf(u.staffId).title):'')+'</span></div></div><button class="btn sm" data-a="logout">Sign out</button></div></aside>'+
   '<div class="content">'+(sup?aiRail(true):'')+asBanner()+adminBanner()+hoursCardHtml()+inner+'<div class="foot"><span>Prototype with sample data, saved in this browser.</span><button class="btn sm" data-a="reset">Reset demo data</button></div></div></div>';
+}
+/* §11a: the Teaching / Business switch. Rendered only for someone who genuinely holds both jobs -
+   a super user with a staff record - so it never appears for a business that has no provider. */
+function hatSwitch(){
+  if(!(me().role==='owner'&&iTeach()))return '';
+  var t=ui.hat==='teach';
+  return '<div class="seg" role="group" aria-label="Teaching or running the business" style="margin:0 0 8px">'+
+    '<button aria-pressed="'+t+'" data-a="hat" data-v="teach">Teaching</button>'+
+    '<button aria-pressed="'+!t+'" data-a="hat" data-v="biz">Business</button></div>';
 }
 function navLabel(role,n){
   var L=LB(),k=n[0];
@@ -3092,7 +3127,10 @@ function staffAddForm(){
 }
 function pgStaff(){
   var L=LB(),wh=weekHours(ds(T0));
-  var h=pageHead('Super user portal',esc(L.staffPlural),'Pay, weekly caps, approved sites and certifications. Only the super user sees pay rates.','<button class="btn pri" data-a="toggleAdd">'+(ui.addStaff?'Cancel':'Add '+esc(L.staff.toLowerCase()))+'</button>');
+  var h=pageHead('Super user portal',esc(L.staffPlural),'Pay, weekly caps, approved sites and certifications. Only the super user sees pay rates.',(iTeach()?'<button class="btn" data-a="hat" data-v="teach">Your teaching view</button>':'')+'<button class="btn pri" data-a="toggleAdd">'+(ui.addStaff?'Cancel':'Add '+esc(L.staff.toLowerCase()))+'</button>');
+  /* §11a: the one act that gives the super user the TEACH job. Offered here, where a manager would
+     add themselves or anyone else, and shown only while they do not already teach. */
+  if(!iTeach())h+='<div class="card" style="margin-bottom:14px"><h3>Do you teach too?</h3><p class="muted sm" style="margin:6px 0 12px">If you take '+esc(L.sessionPlural.toLowerCase())+' yourself, add yourself as '+esc(L.staff.toLowerCase())+' and you get the teaching view: publish your own windows and customers can book you. You keep one login - there is no second account to sign in with.</p><button class="btn pri" data-a="iteach">I also teach</button></div>';
   if(ui.addStaff)h+=staffAddForm();
   h+='<div class="stack">';
   activeStaff().forEach(function(s){
@@ -3117,6 +3155,10 @@ function pgStaff(){
 /* the first page staff land on: the calendar for appointment businesses (the default), or the overview */
 function homeOf(role){return ((role==='manager'||role==='owner')&&B()&&B().home!=='overview')?'calendar':NAV[role][0][0]}
 function navFor(role){
+  /* §11a solo identity: a super user who also teaches gets the provider's nav in the teaching
+     hat. The business pages stay one tap away on the switch in the header. Only for someone who
+     actually holds Teach - otherwise the hat does nothing and the switch is not shown. */
+  if(role==='owner'&&iTeach()&&ui.hat==='teach')return NAV.employee.slice();
   var n=NAV[role].slice();
   if((role==='manager'||role==='owner')&&B().home!=='overview'){var i=-1;n.forEach(function(x,k){if(x[0]==='calendar')i=k});if(i>0){var c=n.splice(i,1)[0];n.unshift(c)}}
   return n;
@@ -4360,6 +4402,9 @@ document.addEventListener('click',function(e){
   else if(a==='day'){ui.day=+el.dataset.v;ui.editHours=false}
   else if(a==='suite'){ui.active_suite=el.dataset.v==='booking'?'booking':'workforce';ui.editHours=false}
   else if(a==='lens'){ui.lens=el.dataset.v}
+  /* §11a solo identity: switch hats, and the act that grants the teaching job in the first place */
+  else if(a==='hat'){ui.hat=el.dataset.v==='teach'?'teach':'biz';var nh=navFor(me().role);if(!nh.some(function(x){return x[0]===ui.page}))ui.page=nh[0][0]}
+  else if(a==='iteach'){if(!iTeach()){var si=iAlsoTeach();if(si){ui.hat='teach';var ni=navFor('owner');ui.page=ni[0][0];toast('You teach too now. Publish a window and customers can book you.')}}}
   else if(a==='copywk'&&canDemand()){   /* clone this week's shifts at this site onto the same people, exactly +7 days; closed days, conflicts and anything already there are skipped, never overwritten */
     var cw=wdates().map(ds),cok=0,cskip=0;
     B().shifts.filter(function(x){return x.loc===ui.loc&&cw.indexOf(x.date)>-1}).map(function(x){return Object.assign({},x)}).forEach(function(x){
