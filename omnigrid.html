@@ -1287,7 +1287,43 @@ function verifyUserRole(requiredTiers){
   var allowed=requiredTiers.map(function(t){return TIER_ROLE[t]||t});
   return allowed.indexOf(u.role)<0?no:{ok:true,role:u.role};
 }
-function canRules(){return verifyUserRole(OFFERING_ROLES).ok}
+/* ---------- §12 grants: who may change the rules ----------
+   DECIDED 2026-11-04: policy is the SUPER USER'S ALONE. A manager - or anyone else - reaches it
+   only by a grant. This replaces the old rule that simply let all three OFFERING_ROLES in, which
+   is why a Manager could change every booking rule in the product.
+
+   A grant is deliberately five plain facts and nothing more: the capability, who it is for, the
+   scope, who granted it and when. Grant it, revoke it, NO CASCADE - a delegated RANK would drag in
+   a shadow org chart; a capability is a fact you can point at.
+
+   The grantee may be one PERSON or a whole CLASSIFICATION ("certain employees or classifications
+   of employees"). The three things that can never be granted - the money, Business settings, and
+   the power to grant - are simply not in the catalogue below, so they cannot be handed out by
+   accident. */
+var GRANT_CAPS=[{k:'policy',n:'Change the booking rules',d:'Services, prices, limits, holds and the rest of policy'}];
+function grantsOn(){B().grants=B().grants||[];return B().grants}
+function grantCap(k){return GRANT_CAPS.filter(function(c){return c.k===k})[0]||null}
+/* does this person hold the capability - by name, or through a classification they belong to? */
+function hasGrant(cap,u){
+  u=u||me();if(!u)return false;
+  var s=u.staffId?staffOf(u.staffId):null;
+  return grantsOn().some(function(g){
+    if(g.cap!==cap)return false;
+    if(g.to==='user')return g.id===u.id||g.id===u.email;
+    if(g.to==='class')return !!(s&&(s.cls||[]).indexOf(g.id)>-1);
+    return false;
+  });
+}
+/* the grant itself: `who` is a user id/email when kind is 'user', or a classification id when 'class' */
+function setGrant(cap,kind,who,on){
+  var g=grantsOn(),key=cap+'|'+kind+'|'+who;
+  var i=g.map(function(x){return x.cap+'|'+x.to+'|'+x.id}).indexOf(key);
+  if(on){if(i<0)g.push({cap:cap,to:kind,id:who,by:(me().id||me().email),at:TODAY})}
+  else if(i>-1)g.splice(i,1);
+  return on;
+}
+/* §12: policy is the super user's alone. This is the ONE place that decides it. */
+function canRules(){var u=me();if(!u)return false;if(u.role==='owner')return true;return hasGrant('policy',u)}
 /* ---- offerings: what is sent when a service's rules are saved ----
    The envelope always names the business the person is signed in to. The server never trusts it for authority (it uses the session) but
    refuses any envelope whose business_id differs from the session's, so a payload built for one business cannot be applied to another. */
@@ -1771,6 +1807,13 @@ function iAlsoTeach(){
   u.staffId=sid;   /* the link that makes them a provider */
   return sid;
 }
+/* Shown when an owner reaches one of the provider pages without holding Teach yet - the teaching
+   nav only offers those pages to someone who does, so this is the belt to that braces. */
+function needTeacher(){
+  var L=LB();
+  return pageHead(PORTAL[me().role],'Not a provider yet','','')+
+    '<div class="card"><h3>You do not teach yet</h3><p class="muted sm" style="margin:6px 0 12px">This page shows your own hours, '+esc(L.sessionPlural.toLowerCase())+' and certifications. Add yourself as '+esc(L.staff.toLowerCase())+' and it fills in.</p><button class="btn pri" data-a="iteach">I also teach</button></div>';
+}
 function adminBanner(){
   var u=me();if(!u||!canSupervise()||ui.page==='booking')return '';
   return '<div class="admin-intercept-action-row fade-in" role="region" aria-label="Administrative shortcut"><div class="intercept-meta-message"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/></svg><p><strong>Administrative session:</strong> signed in as '+ROLEWORD[u.role]+' for '+esc(B().name)+'. Booking limits and payment holds are set in Booking and pricing.</p></div><button class="btn-intercept-redirect-heavy" data-a="nav" data-v="booking">Open service limits</button></div>';
@@ -2252,11 +2295,12 @@ function weekDates(date){var m=pd(weekMon(date)),a=[];for(var i=0;i<7;i++)a.push
 function calView(){return ui.cview==='day'?'day':ui.cview==='month'?'month':'week'}
 function calWho(){
   var l=calStaff();if(!l.length)return null;
-  /* §11a: a super user who also teaches, working in the teaching hat, is publishing their OWN
-     availability. Without this the fallback below picks whoever is first on the list - somebody
-     else - and the windows would be written for the wrong person. */
-  if(me().role==='owner'&&iTeach()&&ui.hat==='teach')return l.filter(function(s){return s.id===me().staffId})[0]||l[0];
   if(me().role==='employee')return l[0];
+  /* §11a: publishing defaults to the super user's OWN record whenever they hold one. Never to
+     whoever happens to be first on the list - that writes the windows for somebody else without a
+     word, and it happens in BOTH hats, because signing in starts in the business hat. The selector
+     above is how they publish for another provider deliberately. */
+  if(me().staffId&&iTeach())return l.filter(function(s){return s.id===me().staffId})[0]||l[0];
   return l.filter(function(s){return s.id===ui.cwho})[0]||l[0];
 }
 function calRange(date){
@@ -3043,7 +3087,8 @@ function navLabel(role,n){
 
 /* ---------- EMPLOYEE portal ---------- */
 function pgProfile(){
-  var s=staffOf(me().staffId),mine=weekHours(ds(T0))[s.id],nxt=weekHours(ds(addD(T0,7)))[s.id];
+  var s=staffOf(me().staffId);if(!s)return needTeacher();
+  var mine=weekHours(ds(T0))[s.id],nxt=weekHours(ds(addD(T0,7)))[s.id];
   var h=pageHead('Employee portal','Hours and certifications','Your weekly cap, approved sites and certification dates. Your manager and super user manage these.');
   h+='<div class="cols"><div class="stack"><div class="card" style="display:grid;gap:14px"><h3>Weekly hours</h3>'+
     [['This week',mine],['Next week',nxt]].map(function(r){return '<div><div class="row sp sm"><span class="muted">'+r[0]+'</span><b class="mono">'+r[1]+' of '+s.maxHours+' h</b></div><div class="meter"><span style="width:'+Math.min(100,Math.round(r[1]/s.maxHours*100))+'%"></span></div></div>'}).join('')+'</div>'+
@@ -3125,6 +3170,33 @@ function staffAddForm(){
     '<div class="row"><button class="btn pri" type="submit">Create '+esc(L.staff.toLowerCase())+'</button><button class="btn" type="button" data-a="toggleAdd">Cancel</button></div>'+
     '<p class="sm muted">They sign in with the business code, this email and the temporary password.</p></form>';
 }
+/* §12: who may change the rules. The super user alone by default; here they hand it to one PERSON
+   or to a whole CLASSIFICATION. Only the super user ever sees this block - and because the power
+   to grant is not in the catalogue, nobody they allow can pass it on to anyone else. */
+function grantBlock(){
+  if(me().role!=='owner')return '';
+  var cap=GRANT_CAPS[0];
+  var people=(B().users||[]).filter(function(u){return u.role!=='customer'&&u.role!=='owner'});
+  var classes=B().classes.filter(function(c){return c.bookable});   /* the same list the calendar offers */
+  var clsOn=function(cid){return grantsOn().some(function(g){return g.cap===cap.k&&g.to==='class'&&g.id===cid})};
+  var row=function(kind,id,label,sub,on){
+    return '<div class="row sp" style="align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line,#e8e8e8)">'+
+      '<div style="min-width:0"><b>'+esc(label)+'</b>'+(sub?'<div class="sm muted">'+esc(sub)+'</div>':'')+'</div>'+
+      '<button class="btn sm" aria-pressed="'+on+'" data-a="grant" data-cap="'+esc(cap.k)+'" data-kind="'+kind+'" data-k="'+esc(id)+'">'+(on?'Allowed':'Not allowed')+'</button></div>';
+  };
+  var h='<div class="card" style="margin-top:16px"><h3>'+esc(cap.n)+'</h3>'+
+    '<p class="muted sm" style="margin:6px 0 4px">'+esc(cap.d)+'. <b>This is yours alone</b> &mdash; nobody else can do it unless you allow them below.</p>';
+  h+='<div class="eyebrow" style="margin-top:12px">One person</div>';
+  h+=people.length?people.map(function(u){
+      var s=u.staffId?staffOf(u.staffId):null;
+      return row('user',u.id,u.name,(u.email||'')+(s&&s.title?' \u00b7 '+s.title:''),hasGrant(cap.k,u));
+    }).join(''):'<p class="sm muted">Nobody else has a login yet. Add someone above.</p>';
+  h+='<div class="eyebrow" style="margin-top:14px">Or a whole classification</div>';
+  h+=classes.length?classes.map(function(c){
+      return row('class',c.id,c.name+' \u2014 everyone',(B().staff.filter(function(s){return (s.cls||[]).indexOf(c.id)>-1}).length)+' '+LB().staffPlural.toLowerCase()+' are '+c.name,clsOn(c.id));
+    }).join(''):'<p class="sm muted">No classifications yet.</p>';
+  return h+'</div>';
+}
 function pgStaff(){
   var L=LB(),wh=weekHours(ds(T0));
   var h=pageHead('Super user portal',esc(L.staffPlural),'Pay, weekly caps, approved sites and certifications. Only the super user sees pay rates.',(iTeach()?'<button class="btn" data-a="hat" data-v="teach">Your teaching view</button>':'')+'<button class="btn pri" data-a="toggleAdd">'+(ui.addStaff?'Cancel':'Add '+esc(L.staff.toLowerCase()))+'</button>');
@@ -3147,7 +3219,7 @@ function pgStaff(){
     }
     h+='</div>';
   });
-  return h+'</div>';
+  return h+'</div>'+grantBlock();
 }
 
 /* ---------- OWNER: business settings ---------- */
@@ -3284,7 +3356,8 @@ function availOpen(sid,dow,bid){
   return locs.some(function(l){var H=(B().hours[l]||{})[dow];return !!H&&H.o<r[1]&&H.c>r[0]})
 }
 function pgAvailability(){
-  var u=me(),s=staffOf(u.staffId),av=B().avail[s.id],w=wdates(),cnt=0,hrs=0;
+  var u=me(),s=staffOf(u.staffId);if(!s)return needTeacher();
+  var av=B().avail[s.id],w=wdates(),cnt=0,hrs=0;
   Object.keys(av).forEach(function(k){if(av[k]){cnt++;hrs+=4}});
   var taken=function(dstr,bid){return B().shifts.some(function(x){if(x.sid!==s.id||x.date!==dstr)return false;for(var h=x.s;h<x.e;h++)if(blockOf(h)===bid)return true;return false})};
   var h=pageHead('Employee portal','Usual hours — a rough weekly blueprint','Your ROUGH weekly default: three day-parts a day (Morning, Afternoon, Evening), repeating every week. It softly pre-populates the calendar and is NOT what you will actually work — set the exact times on My availability. Tap a block to switch it between available and unavailable; tap the star to mark it preferred. Managers can only schedule you into a block you mark available.');
@@ -3779,7 +3852,7 @@ function pgBooking(){
   var L=LB(),R=B().rules,custs=B().users.filter(function(u){return u.role==='customer'}),now=Date.now();
   var live=liveBook().filter(function(k){return startMs(k)>=now}),rev=0,soldN=0,soldV=0;live.forEach(function(k){if(k.paid&&!k.credit)rev+=k.price||0});
   B().users.forEach(function(u){(u.packs||[]).forEach(function(p){soldN++;soldV+=p.paid})});
-  var h=pageHead(PORTAL[me().role],'Booking and pricing','What customers can buy, how it is sold, and the rules around it. Managers and the super user control all of this.');
+  var h=pageHead(PORTAL[me().role],'Booking and pricing','What customers can buy, how it is sold, and the rules around it. '+(canRules()?'You control all of this.':'The super user controls this. Ask them to allow you if you need to change it.'));
   h+='<div class="stats4"><div class="card stat"><div class="eyebrow">Customers</div><b class="mono">'+custs.length+'</b></div><div class="card stat"><div class="eyebrow">Upcoming bookings</div><b class="mono">'+live.length+'</b></div><div class="card stat"><div class="eyebrow">Paid, upcoming</div><b class="mono">'+money(rev)+'</b></div><div class="card stat"><div class="eyebrow">Packages sold</div><b class="mono">'+soldN+'</b><span class="muted sm">'+money(soldV)+'</span></div></div>';
   h+='<div class="cols"><div class="stack">';
   var viewPre=h;h='';   /* the whole offerings view below is built into h, then kept only if the role guard passes */
@@ -4146,7 +4219,8 @@ function nextShiftDate(sid,from){
   var best=null;B().shifts.forEach(function(x){if(x.sid===sid&&x.date>=from&&bookableShift(x)&&(!best||x.date<best))best=x.date});return best;
 }
 function pgShifts(){
-  var s=staffOf(me().staffId),list=myShifts(s.id,ui.week),L=LB(),v=ui.iview||'day',w=wdates();
+  var s=staffOf(me().staffId);if(!s)return needTeacher();
+  var list=myShifts(s.id,ui.week),L=LB(),v=ui.iview||'day',w=wdates();
   var h=pageHead('Employee portal','My shifts','Your shifts and the '+esc(L.session.toLowerCase())+'s booked in them. Check people in, record late cancels and no-shows, and manage your time blocks.',weekNav());
   h+='<div class="row sp"><div class="seg" role="group" aria-label="View"><button aria-pressed="'+(v==='day')+'" data-a="iview" data-v="day">Day grid</button><button aria-pressed="'+(v==='shift')+'" data-a="iview" data-v="shift">By shift</button></div></div>';
   if(v==='shift'){
@@ -4323,7 +4397,10 @@ var PAGES={
   customer:{book:pgBook,mine:pgMine,packages:pgPackages,people:pgPeople},
   employee:{client:pgClient,availability:pgAvailability,calendar:pgCalendar,shifts:pgShifts,facility:pgFacility,profile:pgProfile},
   manager:{client:pgClient,roster:pgRoster,schedule:pgSchedule,calendar:pgCalendar,hours:pgHours,booking:pgBooking,team:pgTeam},
-  owner:{client:pgClient,overview:pgOverview,roster:pgRoster,schedule:pgSchedule,calendar:pgCalendar,hours:pgHours,booking:pgBooking,staff:pgStaff,classes:pgClasses,settings:pgSettings}
+  /* §11a: an owner who also teaches gets the provider pages too, because the teaching hat's nav
+     offers them. pgFacility was always safe; the other three return needTeacher() rather than throw. */
+  owner:{client:pgClient,overview:pgOverview,roster:pgRoster,schedule:pgSchedule,calendar:pgCalendar,hours:pgHours,booking:pgBooking,staff:pgStaff,classes:pgClasses,settings:pgSettings,
+    availability:pgAvailability,shifts:pgShifts,facility:pgFacility,profile:pgProfile}
 };
 /* paint() rebuilds the whole screen, which makes the browser throw away every scroll position (the calendar grid restarts at its top, the page can jump). So a repaint of the
    SAME page puts each calendar grid, and the page itself, back exactly where it was. Changing page starts at the top as usual. Nothing here ever scrolls anywhere new. */
@@ -4405,6 +4482,8 @@ document.addEventListener('click',function(e){
   /* §11a solo identity: switch hats, and the act that grants the teaching job in the first place */
   else if(a==='hat'){ui.hat=el.dataset.v==='teach'?'teach':'biz';var nh=navFor(me().role);if(!nh.some(function(x){return x[0]===ui.page}))ui.page=nh[0][0]}
   else if(a==='iteach'){if(!iTeach()){var si=iAlsoTeach();if(si){ui.hat='teach';var ni=navFor('owner');ui.page=ni[0][0];toast('You teach too now. Publish a window and customers can book you.')}}}
+  /* §12: hand the rules to one person or a whole classification. Only the super user may do this. */
+  else if(a==='grant'){if(me().role!=='owner')return;var gOn=el.getAttribute('aria-pressed')!=='true';setGrant(el.dataset.cap,el.dataset.kind,el.dataset.k,gOn);toast(gOn?'Allowed. They can change the booking rules now.':'Not allowed any more.')}
   else if(a==='copywk'&&canDemand()){   /* clone this week's shifts at this site onto the same people, exactly +7 days; closed days, conflicts and anything already there are skipped, never overwritten */
     var cw=wdates().map(ds),cok=0,cskip=0;
     B().shifts.filter(function(x){return x.loc===ui.loc&&cw.indexOf(x.date)>-1}).map(function(x){return Object.assign({},x)}).forEach(function(x){
