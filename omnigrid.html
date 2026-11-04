@@ -3121,8 +3121,10 @@ function pgClient(){
   h+=pageHead(PORTAL[u.role],esc(name),(age!==''&&age!=null?'Age '+esc(age)+' · ':'')+esc(L.client)+(acct?' · family of '+esc(acct.name):' · walk-in, no account'));
   h+='<div class="stats4"><div class="card stat"><div class="eyebrow">Attended</div><b class="mono">'+done+'</b></div><div class="card stat"><div class="eyebrow">Upcoming</div><b class="mono">'+up.length+'</b></div><div class="card stat"><div class="eyebrow">No-shows</div><b class="mono">'+ns+'</b></div><div class="card stat"><div class="eyebrow">Late cancels</div><b class="mono">'+late+'</b></div></div>';
   h+='<div class="cols"><div class="stack">';
-  /* staff only: this is the instructor's working picture for handover, not a report card. Whether
-     a family ever sees a swimmer's skills is exactly what E4's pass/fail switch governs. */
+  /* staff only, both cards: the standing and the checklist are the instructor's working picture
+     for handover, not a report card. A customer never sees either - they get no client link at
+     all, and the handlers refuse as well. What a family is TOLD about a pass is E4's switch. */
+  if(u.role!=='customer')h+=passPanel(key,bs);
   if(u.role!=='customer')h+=skillPanel(key,bs);
   h+='<div class="card" style="display:grid;gap:10px"><h3>Upcoming</h3>'+(up.length?up.map(row).join(''):'<p class="muted sm">Nothing booked ahead.</p>')+'</div>';
   h+='<div class="card" style="display:grid;gap:10px"><h3>History</h3>'+(past.length?past.slice(0,30).map(row).join(''):'<p class="muted sm">No past bookings yet.</p>')+(past.length>30?'<p class="muted sm">Showing the latest 30.</p>':'')+'</div>';
@@ -3140,6 +3142,12 @@ function pgSettings(){
   var b=B(),L=LB();
   var h=pageHead('Super user portal','Business settings','Names, sites and accounts for '+esc(b.name)+'.');
   h+='<div class="cols"><div class="stack"><div class="card" style="display:grid;gap:12px"><div><h3>Home page</h3><p class="muted sm" style="margin-top:4px">What managers and the super user see first when they sign in. Choose the calendar if you mostly take appointments.</p></div><div class="seg" role="group" aria-label="Home page"><button aria-pressed="'+(b.home!=='overview')+'" data-a="homepage" data-v="calendar">Calendar</button><button aria-pressed="'+(b.home==='overview')+'" data-a="homepage" data-v="overview">Overview</button></div></div>'+
+    /* pass / fail (E4): the one switch that decides whether the product may ever say "not passed" */
+    '<div class="card" style="display:grid;gap:12px"><div class="row sp"><div><h3>Pass or fail</h3><p class="muted sm" style="margin-top:4px">'+
+      (passFailOn()?'A swimmer can be marked as passed, or as not passed. Use this when your programme certifies swimmers.'
+                   :'A swimmer can be marked as passed, and never as not passed. Skills are recorded either way, and nobody is ever scored against a fail.')+
+    '</p></div><button class="lc" aria-pressed="'+passFailOn()+'" data-a="passFail">'+(passFailOn()?'On':'Off')+'</button></div>'+
+    '<p class="sm muted">This is about people rather than settings. In infant and survival work, telling a family their child did not pass can be more than the family wants to put them through — so where this is off, that message cannot be sent from the product at all, and turning it off clears any that were already recorded. A pass is still a manager’s judgement: it is marked even when a skill or two is still open.</p></div>'+
     '<div class="card" style="display:grid;gap:14px"><div><h3>Business</h3><p class="muted sm" style="margin-top:4px">Sign-in code: <b class="mono">'+esc(b.slug)+'</b></p></div><div class="fgrid"><label class="field" for="bn">Business name<input id="bn" type="text" value="'+esc(b.name)+'" data-c="biz" data-field="name"></label></div></div>'+
     '<div class="card" style="display:grid;gap:12px"><h3>Sites</h3>'+b.locations.map(function(l){return '<div class="row" style="flex-wrap:nowrap"><input type="text" aria-label="Site name" value="'+esc(l.name)+'" data-c="loc" data-id="'+l.id+'" data-field="name" style="flex:1 1 auto">'+(activeLocs().length>1&&l.active?'<button class="btn sm danger" data-a="delLoc" data-id="'+l.id+'">Remove</button>':'')+'</div>'}).join('')+
     '<form data-f="addLoc" class="row"><input id="nl" type="text" placeholder="New site name" required style="flex:1 1 200px"><button class="btn" type="submit">Add site</button></form></div></div>'+
@@ -3335,7 +3343,9 @@ function personPicker(u){
 function pgPeople(){
   var u=me(),L=LB(),pp=u.people||[];
   var h=pageHead('Customer portal','My people','Who you book for: a child, a family member or yourself. Their name and age are shown to the '+LB().staff.toLowerCase()+'.');
-  h+='<div class="stack">'+(pp.length?pp.map(function(q){return '<div class="card" style="display:grid;gap:10px"><div class="fgrid"><label class="field" for="pn'+q.id+'">Name<input id="pn'+q.id+'" type="text" value="'+esc(q.name)+'" data-c="pfield" data-id="'+q.id+'" data-field="name"></label><label class="field" for="pa'+q.id+'">Age<input id="pa'+q.id+'" type="number" min="0" max="120" inputmode="numeric" value="'+esc(q.age)+'" data-c="pfield" data-id="'+q.id+'" data-field="age"></label></div><div class="row sp"><span class="muted sm">'+B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length+' booking'+(B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length===1?'':'s')+'</span><button class="btn sm danger" data-a="pdel" data-id="'+q.id+'">Remove</button></div></div>'}).join(''):'<div class="card flat muted">Nobody saved yet. Add someone below, or when you book.</div>')+'</div>';
+  h+='<div class="stack">'+(pp.length?pp.map(function(q){var pst=passOf('p:'+q.id);return '<div class="card" style="display:grid;gap:10px"><div class="fgrid"><label class="field" for="pn'+q.id+'">Name<input id="pn'+q.id+'" type="text" value="'+esc(q.name)+'" data-c="pfield" data-id="'+q.id+'" data-field="name"></label><label class="field" for="pa'+q.id+'">Age<input id="pa'+q.id+'" type="number" min="0" max="120" inputmode="numeric" value="'+esc(q.age)+'" data-c="pfield" data-id="'+q.id+'" data-field="age"></label></div><div class="row sp"><span class="muted sm">'+B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length+' booking'+(B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length===1?'':'s')+'</span>'+/* E4: a family sees a standing only when there IS one - never "not recorded", because where pass or fail is off the child is simply not being scored, and an empty badge would score them. */
+      (pst?'<span class="badge '+(pst==='passed'?'ok':'bad')+'">'+(pst==='passed'?'Passed':'Not passed')+'</span>':'')+
+      '<button class="btn sm danger" data-a="pdel" data-id="'+q.id+'">Remove</button></div></div>'}).join(''):'<div class="card flat muted">Nobody saved yet. Add someone below, or when you book.</div>')+'</div>';
   h+='<form class="card" data-f="padd" style="display:grid;gap:14px"><h3>Add a person</h3><div class="fgrid"><label class="field" for="pnn">Name<input id="pnn" type="text" required></label><label class="field" for="pna">Age<input id="pna" type="number" min="0" max="120" inputmode="numeric"></label></div><div><button class="btn pri" type="submit">Add</button></div></form>';
   return h;
 }
@@ -3379,7 +3389,9 @@ function personPicker(u){
 function pgPeople(){
   var u=me(),L=LB(),pp=u.people||[];
   var h=pageHead('Customer portal','My people','Who you book for: a child, a family member or yourself. Their name and age are shown to the '+LB().staff.toLowerCase()+'.');
-  h+='<div class="stack">'+(pp.length?pp.map(function(q){return '<div class="card" style="display:grid;gap:10px"><div class="fgrid"><label class="field" for="pn'+q.id+'">Name<input id="pn'+q.id+'" type="text" value="'+esc(q.name)+'" data-c="pfield" data-id="'+q.id+'" data-field="name"></label><label class="field" for="pa'+q.id+'">Age<input id="pa'+q.id+'" type="number" min="0" max="120" inputmode="numeric" value="'+esc(q.age)+'" data-c="pfield" data-id="'+q.id+'" data-field="age"></label></div><div class="row sp"><span class="muted sm">'+B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length+' booking'+(B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length===1?'':'s')+'</span><button class="btn sm danger" data-a="pdel" data-id="'+q.id+'">Remove</button></div></div>'}).join(''):'<div class="card flat muted">Nobody saved yet. Add someone below, or when you book.</div>')+'</div>';
+  h+='<div class="stack">'+(pp.length?pp.map(function(q){var pst=passOf('p:'+q.id);return '<div class="card" style="display:grid;gap:10px"><div class="fgrid"><label class="field" for="pn'+q.id+'">Name<input id="pn'+q.id+'" type="text" value="'+esc(q.name)+'" data-c="pfield" data-id="'+q.id+'" data-field="name"></label><label class="field" for="pa'+q.id+'">Age<input id="pa'+q.id+'" type="number" min="0" max="120" inputmode="numeric" value="'+esc(q.age)+'" data-c="pfield" data-id="'+q.id+'" data-field="age"></label></div><div class="row sp"><span class="muted sm">'+B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length+' booking'+(B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length===1?'':'s')+'</span>'+/* E4: a family sees a standing only when there IS one - never "not recorded", because where pass or fail is off the child is simply not being scored, and an empty badge would score them. */
+      (pst?'<span class="badge '+(pst==='passed'?'ok':'bad')+'">'+(pst==='passed'?'Passed':'Not passed')+'</span>':'')+
+      '<button class="btn sm danger" data-a="pdel" data-id="'+q.id+'">Remove</button></div></div>'}).join(''):'<div class="card flat muted">Nobody saved yet. Add someone below, or when you book.</div>')+'</div>';
   h+='<form class="card" data-f="padd" style="display:grid;gap:14px"><h3>Add a person</h3><div class="fgrid"><label class="field" for="pnn">Name<input id="pnn" type="text" required></label><label class="field" for="pna">Age<input id="pna" type="number" min="0" max="120" inputmode="numeric"></label></div><div><button class="btn pri" type="submit">Add</button></div></form>';
   return h;
 }
@@ -3575,6 +3587,31 @@ function skillBlock(sv){
 function marksOf(key){var m=B().marks||(B().marks={});return m[key]||(m[key]={})}
 /* every offering this swimmer is booked into that is tracking skills, in the order they appear */
 function skillSvcsFor(bs){var out=[];bs.forEach(function(k){var sv=k.svc?svcOf(k.svc):null;if(sv&&sv.skillsOn&&(sv.skills||[]).length&&out.indexOf(sv)<0)out.push(sv)});return out}
+/* ---------- pass / fail (E4): a switch, and ONE place the rule lives.
+   Where the switch is off, the product may say "passed" and nothing else - a swimmer either
+   holds a pass or holds nothing, and can never be marked as not passing. That is deliberate
+   and it is about people, not settings: in infant and survival work, telling a family their
+   child did not pass can be more than the family wants to put them through, and it would be
+   the PRODUCT saying it rather than the business choosing to (12.11). Skills are recorded
+   either way, and a pass is a person's judgement - never a count of ticks. ---------- */
+function passFailOn(){return !!B().passFail}
+function passOf(key){var p=(B().passes||{})[key];if(p==='passed')return 'passed';return (p==='not'&&passFailOn())?'not':''}
+/* someone a pass could be recorded against: a named swimmer with a booking here */
+function passPanel(key,bs){
+  if(!skillSvcsFor(bs).length&&!passOf(key))return '';
+  var st=passOf(key),on=passFailOn();
+  var lbl=st==='passed'?'Passed':st==='not'?'Not passed':'Not recorded yet';
+  var cls=st==='passed'?'ok':st==='not'?'bad':'n';
+  return '<div class="card" style="display:grid;gap:10px"><div class="row sp"><h3>Standing</h3><span class="badge '+cls+'">'+lbl+'</span></div>'+
+    '<p class="sm muted">A pass is your judgement, not a count of the ticks - mark it even when a skill or two is still open. That is what the checklist is evidence for.</p>'+
+    '<div class="row" style="gap:8px;flex-wrap:wrap">'+
+      (st==='passed'?'':'<button class="btn pri" data-a="passSet" data-k="'+esc(key)+'" data-v="passed">Mark as passed</button>')+
+      (on?(st==='not'?'':'<button class="btn" data-a="passSet" data-k="'+esc(key)+'" data-v="not">Mark as not passed</button>'):'')+
+      (st?'<button class="btn sm" data-a="passSet" data-k="'+esc(key)+'" data-v="">Clear</button>':'')+
+    '</div>'+
+    (on?'':'<p class="sm muted">Pass or fail is off, so nothing here can ever read as a failure. Turn it on in Business settings if your programme certifies.</p>')+
+    '</div>';
+}
 /* the marking surface: it sits on the swimmer's own page, which is where a name leads, so the
    mark is made while the child is in the water rather than from memory afterwards. */
 function skillPanel(key,bs){
@@ -4338,6 +4375,22 @@ document.addEventListener('click',function(e){
     var md=marksOf(el.dataset.k),sid=el.dataset.id;
     if(md[sid])delete md[sid];else md[sid]=TODAY;
     save();paint();
+  }
+  else if(a==='passSet'){   /* E4: the pass is a judgement, so staff mark it - same gate as a skill */
+    if(!(me().role==='employee'||canSupervise()))return;
+    var pk=el.dataset.k,pv=el.dataset.v,ps=B().passes||(B().passes={});
+    if(pv==='not'&&!passFailOn())return;   /* the rule, enforced at the write: no negative while the switch is off */
+    if(pv)ps[pk]=pv;else delete ps[pk];
+    save();paint();
+  }
+  else if(a==='passFail'){   /* E4: the switch itself, and only a supervisor sets it */
+    if(!canSupervise())return;
+    var pf=!B().passFail;B().passFail=pf;
+    var cleared=0;
+    if(!pf)Object.keys(B().passes||{}).forEach(function(k){if(B().passes[k]==='not'){delete B().passes[k];cleared++}});
+    save();paint();
+    toast(pf?'Pass or fail is on. A swimmer can now be marked as not passed.'
+            :'Pass or fail is off. Nobody can be marked as not passing'+(cleared?' - '+cleared+' existing mark'+(cleared===1?' was':'s were')+' cleared.':''));
   }
   else if(a==='bkclearhours'){if(!canRules())return;var sch=svcOf(el.dataset.id);if(!sch||!sch.bk)return;var cb={};Object.keys(sch.bk).forEach(function(k){cb[k]=sch.bk[k]});cb.early='';cb.late='';sch.bk=bkClean(cb);submitOffering(sch);toast('Daily hour limits cleared')}
   else if(a==='bktoggle'){if(!canRules())return;ui.bkOpen=ui.bkOpen||{};ui.bkOpen[el.dataset.id]=!ui.bkOpen[el.dataset.id]}
