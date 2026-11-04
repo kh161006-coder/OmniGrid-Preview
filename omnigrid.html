@@ -1054,6 +1054,7 @@ function setBookingRule(field,v){
   else if(field==='advanceDays')R.advanceDays=Math.max(1,Math.min(365,n));
   else if(field==='noticeHours'||field==='cancelHours')R[field]=Math.max(0,Math.min(168,n));
   else if(field==='lateFeePct'||field==='noShowFeePct')R[field]=Math.max(0,Math.min(100,n));
+  else if(field==='minGap')R.minGap=Math.max(0,Math.min(240,n));   /* the business-wide break between two lessons in one session; 0 = none anywhere */
   else return false;
   return true;
 }
@@ -1168,7 +1169,11 @@ function bkPick(own,min,fallback){return bkHas(own)&&+own>=min?+own:fallback}
    A service may override it with bk.minGap, and 0 there means NO gap is required.
    Declared up here so bkOf() can never read it before it is assigned. */
 var SEQ_MIN_GAP=20;
-function bkOf(sv){var b=sv&&sv.bk||{},R=B().rules;return{every:bkPick(b.every,1,R.startStep||10),lead:bkPick(b.lead,0,R.noticeHours),ahead:bkPick(b.ahead,1,R.advanceDays),perDay:b.perDay||0,perWeek:b.perWeek||0,days:(b.days&&b.days.length)?b.days:[0,1,2,3,4,5,6],early:b.early||'',late:b.late||'',hold:b.hold||120,minPerWeek:b.minPerWeek||0,allowBackToBackApproval:bkHas(b.allowBackToBackApproval)?!!b.allowBackToBackApproval:false,minGap:bkPick(b.minGap,0,SEQ_MIN_GAP)}}
+/* The business-wide figure for that gap, if one has been set. Absent means 20, so the rule is
+   unchanged for anyone who never touches it - and 0 is a real choice: no gap anywhere. This is
+   the middle layer of the override hierarchy above: service first, then B().rules, then 20. */
+function rulesMinGap(){var v=B()&&B().rules?B().rules.minGap:null;return bkHas(v)?Math.max(0,Math.min(240,Math.round(+v))):SEQ_MIN_GAP}
+function bkOf(sv){var b=sv&&sv.bk||{},R=B().rules;return{every:bkPick(b.every,1,R.startStep||10),lead:bkPick(b.lead,0,R.noticeHours),ahead:bkPick(b.ahead,1,R.advanceDays),perDay:b.perDay||0,perWeek:b.perWeek||0,days:(b.days&&b.days.length)?b.days:[0,1,2,3,4,5,6],early:b.early||'',late:b.late||'',hold:b.hold||120,minPerWeek:b.minPerWeek||0,allowBackToBackApproval:bkHas(b.allowBackToBackApproval)?!!b.allowBackToBackApproval:false,minGap:bkPick(b.minGap,0,rulesMinGap())}}
 /* start times for a service: its own interval is read off the clock (every 60 = on the hour); otherwise the business's grid */
 /* the grid a service is drawn on: its own Start Interval when set (10 to 60, in 10s), otherwise the business-wide interval, and only then the 10-minute floor */
 function gridOf(sv){var e=sv&&sv.bk&&sv.bk.every,R=B().rules;if(e>=10&&e<=240&&e%10===0)return{every:e,source:'offering'};var base=R.startStep||10,d=sv&&sv.min?durStep(sv.min,base):base;if(d!==base)return{every:d,source:'duration'};return{every:base,source:R.startStep?'business':'default'}}
@@ -3619,7 +3624,9 @@ function bizDefaultsBlock(){
   if(!open)return head+'</div>';
   return head+'<div class="fgrid">'+
     '<label class="field bkdeflead" for="rstartStep">Business-wide defaults — the start grid (used only where a service leaves its own rule blank)<select id="rstartStep" data-c="rule" data-field="startStep">'+[10,20,30,60].map(function(m){return '<option value="'+m+'"'+(m===R.startStep?' selected':'')+'>'+m+' minutes</option>'}).join('')+'</select></label>'+
-    [['advanceDays','Book up to (days ahead)',1,365],['noticeHours','Minimum notice (hours)',0,168],['cancelHours','Free cancellation until (hours before)',0,168],['lateFeePct','Late-cancel fee (% of price)',0,100],['noShowFeePct','No-show fee (% of price)',0,100]].map(function(f){return '<label class="field" for="r'+f[0]+'">'+f[1]+'<input id="r'+f[0]+'" type="number" min="'+f[2]+'" max="'+f[3]+'" value="'+R[f[0]]+'" data-c="rule" data-field="'+f[0]+'"></label>'}).join('')+'</div>'+
+    [['advanceDays','Book up to (days ahead)',1,365],['noticeHours','Minimum notice (hours)',0,168],['cancelHours','Free cancellation until (hours before)',0,168],['lateFeePct','Late-cancel fee (% of price)',0,100],['noShowFeePct','No-show fee (% of price)',0,100]].map(function(f){return '<label class="field" for="r'+f[0]+'">'+f[1]+'<input id="r'+f[0]+'" type="number" min="'+f[2]+'" max="'+f[3]+'" value="'+R[f[0]]+'" data-c="rule" data-field="'+f[0]+'"></label>'}).join('')+
+    '<label class="field" for="rminGap">Least minutes between two lessons in one session<input id="rminGap" type="number" min="0" max="240" value="'+rulesMinGap()+'" data-c="rule" data-field="minGap"><span class="hint">0 means no gap anywhere. A single service can still set its own, including 0 to have none just there.</span></label>'+
+    '</div>'+
     '<p class="sm muted">Slots come from scheduled shifts. '+esc(L.staffPlural)+' and managers can hold back 30-minute blocks or turn a whole shift off for online booking.</p></div>';
 }
 /* services that are switched off (or flagged as system-generated templates) leave the main grid and wait in one collapsed accordion at the very bottom of the page */
