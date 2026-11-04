@@ -2114,37 +2114,71 @@ function OFFERING_TRANSPORT(env){
    In server mode (window.OMNIGRID_API_BASE set) there is no seeded data. Sign-in is POST /api/auth/login, the token lives in memory only, and the
    screen shows a loading skeleton until GET /api/staff and GET /api/services have answered. A failure shows a Retry button, never sample data. */
 var SYNC={state:'idle',msg:''};   /* idle | loading | error | ready */
-var SERVER_ROLE={owner:'owner',manager:'manager',staff:'employee',client:'customer'};
+/* §2.3: the manager mapping is gone. If the server ever answers with a role not named here, the
+   sign-in is REFUSED rather than guessed at - which is the fail-closed direction, and is why the
+   retired 'manager' is deliberately absent instead of aliased to something. */
+var SERVER_ROLE={owner:'owner',staff:'employee',client:'customer'};
+/* One follow-up for ANY way the server hands us a session - signing in, or registering a customer.
+   Both end with a token and the person's own row, and everything after that is identical: ask the
+   server who we are, attach (or create) this browser's copy of the business, then sign in locally so
+   the rest of the app works. Keeping it in ONE place is why registering a customer is a few lines
+   instead of a second copy of this function. */
+function adoptServerSession(slug,email,body,bad){
+  if(!body||typeof body.token!=='string'||body.token.length<20||!body.user||!SERVER_ROLE[body.user.role])return 'The server could not sign you in right now. Please try again.';
+  REMOTE={token:body.token,businessId:null};
+  return remoteCall('GET','/api/me').then(function(m){
+    if(!m||m.status!==200||!m.body||!m.body.user||!UUID_RE.test(String(m.body.user.business_id||''))){REMOTE=null;return 'The server could not sign you in right now. Please try again.'}
+    var bid=m.body.user.business_id,bn=m.body.business&&m.body.business.name||slug,u=body.user;REMOTE.businessId=bid;
+    var biz=allBiz().filter(function(b){return b.remoteId===bid})[0],secret=randomLocalSecret();
+    if(!biz){
+      var err=createBusiness({name:bn,slug:slug,owner:u.role==='owner'?(u.full_name||'Super user'):'Super user',email:u.role==='owner'?email:'owner@'+slug+'.local',pw:secret,vertical:pubVertical()});
+      if(err){REMOTE=null;return err}
+      biz=allBiz().filter(function(b){return b.slug===slug})[0];if(!biz){REMOTE=null;return bad}
+      biz.remoteId=bid;
+    }
+    var lu=biz.users.filter(function(x){return x.email===email})[0];
+    if(!lu){lu={id:uid('u'),email:email,name:u.full_name||email,role:SERVER_ROLE[u.role]};biz.users.push(lu)}
+    lu.pw=secret;lu.role=SERVER_ROLE[u.role];                       /* the real password never reaches local storage */
+    if(u.role==='client'&&!lu.people)lu.people=[];                  /* a customer's own family list */
+    SYNC={state:'loading',msg:''};
+    if(!signIn(slug,email,secret)){REMOTE=null;SYNC={state:'idle',msg:''};return bad}
+    DB.session.bid=bid;setTimeout(hydrateFromServer,0);
+    return '';
+  });
+}
+/* POST a JSON body and normalise the answer to {status, body}, so every server call in this file
+   reads the same way and the abort timer is handled in one place. */
+function postJson(path,payload){
+  var ctl=typeof AbortController==='function'?new AbortController():null,timer=ctl?setTimeout(function(){ctl.abort()},REMOTE_TIMEOUT_MS):null;
+  return fetch(remoteBase()+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload),credentials:'omit',signal:ctl?ctl.signal:undefined})
+    .then(function(res){return res.text().then(function(t){var j=null;try{j=t?JSON.parse(t):null}catch(e){}if(timer)clearTimeout(timer);return {status:res.status,body:j}})});
+}
 function serverSignIn(slug,email,pw){
   slug=String(slug||'').trim().toLowerCase();email=String(email||'').trim().toLowerCase();
   var bad='Check your business code, email and password.';
   if(!slug||!email||!pw)return Promise.resolve(bad);
-  var ctl=typeof AbortController==='function'?new AbortController():null,timer=ctl?setTimeout(function(){ctl.abort()},REMOTE_TIMEOUT_MS):null;
-  return fetch(remoteBase()+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({business_slug:slug,email:email,password:String(pw)}),credentials:'omit',signal:ctl?ctl.signal:undefined})
-    .then(function(res){return res.text().then(function(t){var j=null;try{j=t?JSON.parse(t):null}catch(e){}if(timer)clearTimeout(timer);return {status:res.status,body:j}})})
+  return postJson('/api/auth/login',{business_slug:slug,email:email,password:String(pw)})
     .then(function(r){
       if(r.status===401||r.status===400)return bad;
-      if(r.status!==200||!r.body||typeof r.body.token!=='string'||r.body.token.length<20||!r.body.user||!SERVER_ROLE[r.body.user.role])return 'The server could not sign you in right now. Please try again.';
-      REMOTE={token:r.body.token,businessId:null};
-      return remoteCall('GET','/api/me').then(function(m){
-        if(!m||m.status!==200||!m.body||!m.body.user||!UUID_RE.test(String(m.body.user.business_id||''))){REMOTE=null;return 'The server could not sign you in right now. Please try again.'}
-        var bid=m.body.user.business_id,bn=m.body.business&&m.body.business.name||slug,u=r.body.user;REMOTE.businessId=bid;
-        var biz=allBiz().filter(function(b){return b.remoteId===bid})[0],secret=randomLocalSecret();
-        if(!biz){
-          var err=createBusiness({name:bn,slug:slug,owner:u.role==='owner'?(u.full_name||'Super user'):'Super user',email:u.role==='owner'?email:'owner@'+slug+'.local',pw:secret,vertical:pubVertical()});
-          if(err){REMOTE=null;return err}
-          biz=allBiz().filter(function(b){return b.slug===slug})[0];if(!biz){REMOTE=null;return bad}
-          biz.remoteId=bid;
-        }
-        var lu=biz.users.filter(function(x){return x.email===email})[0];
-        if(!lu){lu={id:uid('u'),email:email,name:u.full_name||email,role:SERVER_ROLE[u.role]};biz.users.push(lu)}
-        lu.pw=secret;lu.role=SERVER_ROLE[u.role];                       /* the real password never reaches local storage */
-        SYNC={state:'loading',msg:''};
-        if(!signIn(slug,email,secret)){REMOTE=null;SYNC={state:'idle',msg:''};return bad}
-        DB.session.bid=bid;setTimeout(hydrateFromServer,0);
-        return '';
-      });
-    },function(){if(timer)clearTimeout(timer);return 'Could not reach the server. Check your connection and try again.'});
+      if(r.status!==200)return 'The server could not sign you in right now. Please try again.';
+      return adoptServerSession(slug,email,r.body,bad);
+    },function(){return 'Could not reach the server. Check your connection and try again.'});
+}
+/* §5 item 3: a real customer account, ON THE SERVER. The sign-up form used to write the person into
+   THIS browser only, so a customer created in one browser did not exist for the business in another -
+   which is exactly what stopped two-browser testing. The SERVER forces the role to 'client' and takes
+   the business from the code; nothing here names a role or a business id. Resolves to '' on success,
+   or the message to show. */
+function serverRegister(slug,name,email,pw){
+  slug=String(slug||'').trim().toLowerCase();email=String(email||'').trim().toLowerCase();name=String(name||'').trim();
+  var bad='Check the business code, your name, your email and your password.';
+  if(!slug||!email||!pw)return Promise.resolve(bad);
+  return postJson('/api/auth/register',{business_slug:slug,full_name:name,email:email,password:String(pw)})
+    .then(function(r){
+      if(r.status===400)return (r.body&&r.body.error)||bad;   /* the server's own words: bad code, email already here, weak password */
+      if(r.status!==201)return 'The server could not create your account right now. Please try again.';
+      return adoptServerSession(slug,email,r.body,bad);
+    },function(){return 'Could not reach the server. Check your connection and try again.'});
 }
 function hydrateFromServer(){
   if(!serverLive()||!DB.session||!DB.session.biz)return Promise.resolve(false);
@@ -3191,7 +3225,9 @@ function viewAsBox(){
   var real=realMe();if(real.role!=='owner')return '';
   var as=DB.session.as||'',U=B().users,opt=function(list,label){return list.length?'<optgroup label="'+label+'">'+list.map(function(x){return '<option value="'+x.id+'"'+(x.id===as?' selected':'')+'>'+esc(x.name)+'</option>'}).join('')+'</optgroup>':''};
   return '<div class="viewas"><label for="vas">View the business as</label><select id="vas" data-c="viewas"><option value="">Super user (you)</option>'+
-    opt(U.filter(function(x){return x.role==='manager'}),'Manager')+opt(U.filter(function(x){return x.role==='employee'}),LB().staffPlural)+opt(U.filter(function(x){return x.role==='customer'}).slice(0,8),'Customers')+'</select></div>';
+    /* §2.3: no manager ROLE to offer here any more. The word is a CLASSIFICATION a business gives
+       out, not a rank - the person carrying it is an ordinary employee, and the Employee option
+       below already offers them. */''+opt(U.filter(function(x){return x.role==='employee'}),LB().staffPlural)+opt(U.filter(function(x){return x.role==='customer'}).slice(0,8),'Customers')+'</select></div>';
 }
 function asBanner(){
   if(!DB.session.as)return '';var u=me();
@@ -3475,7 +3511,7 @@ function pgSettings(){
     '<div class="card" style="display:grid;gap:14px"><div><h3>Business</h3><p class="muted sm" style="margin-top:4px">Sign-in code: <b class="mono">'+esc(b.slug)+'</b></p></div><div class="fgrid"><label class="field" for="bn">Business name<input id="bn" type="text" value="'+esc(b.name)+'" data-c="biz" data-field="name"></label></div></div>'+
     '<div class="card" style="display:grid;gap:12px"><h3>Sites</h3>'+b.locations.map(function(l){return '<div class="row" style="flex-wrap:nowrap"><input type="text" aria-label="Site name" value="'+esc(l.name)+'" data-c="loc" data-id="'+l.id+'" data-field="name" style="flex:1 1 auto">'+(activeLocs().length>1&&l.active?'<button class="btn sm danger" data-a="delLoc" data-id="'+l.id+'">Remove</button>':'')+'</div>'}).join('')+
     '<form data-f="addLoc" class="row"><input id="nl" type="text" placeholder="New site name" required style="flex:1 1 200px"><button class="btn" type="submit">Add site</button></form></div></div>'+
-    '<aside class="stack"><div class="card" style="display:grid;gap:10px"><h3>Accounts</h3>'+b.users.map(function(u){return '<div class="row sp sm"><div style="min-width:0"><b>'+esc(u.name)+'</b><div class="muted" style="overflow-wrap:anywhere">'+esc(u.email)+'</div></div><span class="badge '+(u.role==='owner'?'warn':u.role==='manager'?'n':'ok')+'">'+roleWord(u)+'</span></div>'}).join('')+
+    '<aside class="stack"><div class="card" style="display:grid;gap:10px"><h3>Accounts</h3>'+b.users.map(function(u){return '<div class="row sp sm"><div style="min-width:0"><b>'+esc(u.name)+'</b><div class="muted" style="overflow-wrap:anywhere">'+esc(u.email)+'</div></div><span class="badge '+(u.role==='owner'?'warn':'ok')+'">'+roleWord(u)+'</span></div>'}).join('')+
     '<form data-f="addMgr" style="display:grid;gap:8px;margin-top:6px"><div class="eyebrow">Add a manager</div><input id="mn" type="text" placeholder="Full name" required><input id="me" type="email" placeholder="Email" required><button class="btn" type="submit">Create manager account</button></form></div></aside></div>';
   return h;
 }
@@ -5099,7 +5135,25 @@ document.addEventListener('submit',function(e){
     ui.pkAdd=ui.pkAdd||{};ui.pkAdd[pk0]=false;if(ui.pkRule)delete ui.pkRule[pk0];
     toast(pkgName(pq,psvc)+' added and for sale');
   }
-  else if(f==='register'){ui.regErr=register(ui.reg);if(!ui.regErr){ui.reg={slug:ui.reg.slug,name:'',email:'',pw:''};toast('Welcome! Your account is ready')}}
+  else if(f==='register'){
+    /* §5 item 3: on the hosted product this is a REAL account, on the server. Before this the form
+       only wrote the person into THIS browser, so a customer created in one browser did not exist for
+       the business in another - which is exactly what stopped two-browser testing. The offline
+       single-file copy keeps its local path unchanged. */
+    var rr=ui.reg;
+    if(serverMode()){
+      if(ui.regBusy)return;
+      ui.regBusy=true;ui.regErr='';
+      serverRegister(rr.slug,rr.name,rr.email,rr.pw).then(function(e){
+        ui.regBusy=false;
+        if(e){ui.regErr=e;toast(e)}else{ui.reg={slug:rr.slug,name:'',email:'',pw:''};toast('Welcome! Your account is ready and saved on the server')}
+        save();paint();
+      });
+    } else {
+      ui.regErr=register(rr);
+      if(!ui.regErr){ui.reg={slug:rr.slug,name:'',email:'',pw:''};toast('Welcome! Your account is ready')}
+    }
+  }
   else if(f==='addCls'){var cn=v('nc1').trim();if(!cn)return;B().classes.push({id:B().id+'-c'+uid(''),name:cn,bookable:v('nc3')==='yes',reqCert:v('nc2').trim()});toast(cn+' added. Set who holds it on the Staff page and how many are needed on Hours and staffing')}
   else if(f==='addSvc'){
     var gate=rulesGate();if(!gate.ok){toast(gate.error.message);return}
