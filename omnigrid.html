@@ -964,7 +964,7 @@ function LB(){var l=(B()&&B().labels)||{},o={};Object.keys(LBDEF).forEach(functi
 
 /* ---------- seed data: two unrelated businesses ---------- */
 function mkBiz(d){
-  var b={id:d.id,slug:d.slug,name:d.name,labels:d.labels,locations:[],staff:[],users:[],avail:{},pref:{},shifts:[],book:[],hours:{},demand:{},hoursOv:{},needOv:{},classes:[],services:[],packages:[],courses:[],stages:{},rules:{onlineOn:true,advanceDays:28,noticeHours:2,cancelHours:24,startStep:10,lateFeePct:50,noShowFeePct:100}};
+  var b={id:d.id,slug:d.slug,name:d.name,labels:d.labels,locations:[],staff:[],users:[],avail:{},pref:{},shifts:[],book:[],hours:{},demand:{},hoursOv:{},needOv:{},classes:[],services:[],packages:[],courses:[],stages:{},rules:{onlineOn:true,advanceDays:28,noticeHours:2,cancelHours:24,startStep:10,lateFeePct:50,noShowFeePct:100,holdOn:false,holdUnpaid:false,holdDate:false,holdApproval:false,holdDays:10}};
   d.classes.forEach(function(c,i){b.classes.push({id:d.id+'-c'+(i+1),name:c[0],bookable:c[1],reqCert:c[2]||''})});
   (d.services||[]).forEach(function(s,i){b.services.push({id:d.id+'-sv'+(i+1),name:s[0],min:s[1],cents:s[2],active:true})});
   d.locs.forEach(function(l,i){
@@ -1062,6 +1062,7 @@ function setBookingRule(field,v){
   else if(field==='noticeHours'||field==='cancelHours')R[field]=Math.max(0,Math.min(168,n));
   else if(field==='lateFeePct'||field==='noShowFeePct')R[field]=Math.max(0,Math.min(100,n));
   else if(field==='minGap')R.minGap=Math.max(0,Math.min(240,n));   /* the business-wide break between two lessons in one session; 0 = none anywhere */
+  else if(field==='holdDays')R.holdDays=Math.max(1,Math.min(30,n));   /* B5: how long a dated hold keeps a slot, counted back from the lesson */
   else return false;
   return true;
 }
@@ -1499,10 +1500,10 @@ function sequenceProblems(plan){
            so a pick can still sit on top of a lesson the person already holds. */
         out.push({kind:'rule',text:sv.name+': that time overlaps a lesson you already have in this session'});
       }else if(k.allowBackToBackApproval){
-        /* NOT a refusal, and NOT a new workflow: this is the 12.4 waiting mechanism,
-           one mechanism with three uses. Until B5 is built there is nothing to hand it
-           to, so say so plainly rather than fake a pending state. */
-        out.push({kind:'wait',text:sv.name+': two lessons this close need an instructor\'s approval, and approvals are not built yet'});
+        /* NOT a refusal, and NOT a new workflow: this IS the 12.4 waiting mechanism, one
+           mechanism with three uses. The pairing is booked and then waits for a person.
+           The sv id rides along on the problem so payCart knows WHICH booking to hold. */
+        out.push({kind:'wait',sv:sv.id,text:sv.name+': two lessons this close need an instructor\'s approval - they will be booked and wait for it'});
       }else{
         out.push({kind:'rule',text:sv.name+' needs '+need+' minutes between two lessons in the same session (these are '+gap+' apart)'});
       }
@@ -3629,11 +3630,13 @@ function pkgCard(){
 function bizDefaultsBlock(){
   var R=B().rules,L=LB(),open=!!ui.defOpen;
   var head='<div class="card svcdef"><div class="row sp"><div><b>Online booking</b><div class="muted sm">Turn off to stop all new customer bookings.</div></div><button class="lc" aria-pressed="'+R.onlineOn+'" data-a="onlineAll">'+(R.onlineOn?'On':'Paused')+'</button></div>'+
+    '<div class="row sp"><div><b>Holding bookings</b><div class="muted sm">A booking that waits for something before it is confirmed. It is released on its own the moment its condition is met - nobody has to remember to look.</div></div><button class="lc" aria-pressed="'+!!R.holdOn+'" data-a="holdAll">'+(R.holdOn?'On':'Off')+'</button></div>'+
+    (R.holdOn?[['holdUnpaid','Payment','Held until the money lands.'],['holdDate','A date','Held until a set number of days before the lesson.'],['holdApproval','Approval','Held until a manager says yes.']].map(function(f){return '<div class="row sp"><div><b>'+f[1]+'</b><div class="muted sm">'+f[2]+'</div></div><button class="lc" aria-pressed="'+!!R[f[0]]+'" data-a="holdtog" data-k="'+f[0]+'">'+(R[f[0]]?'On':'Off')+'</button></div>'}).join(''):'')+
     '<div class="row sp"><div class="svclbl"><b>Business-wide defaults</b><span class="sm muted">These baseline numbers apply broadly across the platform, but setting specific rules inside an individual appointment drawer below will completely bypass these defaults.</span></div><button class="btn sm" type="button" data-a="defacc" aria-expanded="'+open+'">'+(open?'Hide':'Show')+'</button></div>';
   if(!open)return head+'</div>';
   return head+'<div class="fgrid">'+
     '<label class="field bkdeflead" for="rstartStep">Business-wide defaults — the start grid (used only where a service leaves its own rule blank)<select id="rstartStep" data-c="rule" data-field="startStep">'+[10,20,30,60].map(function(m){return '<option value="'+m+'"'+(m===R.startStep?' selected':'')+'>'+m+' minutes</option>'}).join('')+'</select></label>'+
-    [['advanceDays','Book up to (days ahead)',1,365],['noticeHours','Minimum notice (hours)',0,168],['cancelHours','Free cancellation until (hours before)',0,168],['lateFeePct','Late-cancel fee (% of price)',0,100],['noShowFeePct','No-show fee (% of price)',0,100]].map(function(f){return '<label class="field" for="r'+f[0]+'">'+f[1]+'<input id="r'+f[0]+'" type="number" min="'+f[2]+'" max="'+f[3]+'" value="'+R[f[0]]+'" data-c="rule" data-field="'+f[0]+'"></label>'}).join('')+
+    [['advanceDays','Book up to (days ahead)',1,365],['noticeHours','Minimum notice (hours)',0,168],['cancelHours','Free cancellation until (hours before)',0,168],['lateFeePct','Late-cancel fee (% of price)',0,100],['noShowFeePct','No-show fee (% of price)',0,100],['holdDays','Hold a booking for (days before the lesson)',1,30]].map(function(f){return '<label class="field" for="r'+f[0]+'">'+f[1]+'<input id="r'+f[0]+'" type="number" min="'+f[2]+'" max="'+f[3]+'" value="'+R[f[0]]+'" data-c="rule" data-field="'+f[0]+'"></label>'}).join('')+
     '<label class="field" for="rminGap">Least minutes between two lessons in one session<input id="rminGap" type="number" min="0" max="240" value="'+rulesMinGap()+'" data-c="rule" data-field="minGap"><span class="hint">0 means no gap anywhere. A single service can still set its own, including 0 to have none just there.</span></label>'+
     '</div>'+
     '<p class="sm muted">Slots come from scheduled shifts. '+esc(L.staffPlural)+' and managers can hold back 30-minute blocks or turn a whole shift off for online booking.</p></div>';
@@ -3951,6 +3954,36 @@ function pgBook(){
 /* ---------- bookings: attendance and cancellation classes ---------- */
 var CANCEL_LBL={ontime:'Cancelled in time',late:'Late cancel',noshow:'No-show',staff:'Cancelled by us'};
 function bState(k){return k.status==='cancelled'?'cancelled':k.att==='noshow'?'noshow':k.att==='done'?'done':k.att==='in'?'in':'booked'}
+/* ---------- B5 (12.4): a booking that WAITS ----------
+   One mechanism, three release conditions: an UNPAID one released when the money lands, a
+   DATED one released when the day arrives, an APPROVAL one released by a person deciding.
+   Stored as k.hold={why,at,until}. k.status is deliberately left alone, so nothing that
+   already reads a booking's state has to learn a new word. */
+var HOLD_LBL={unpaid:'Waiting for payment',date:'Held until',approval:'Waiting for approval'};
+/* The SWITCH's own name is not the badge's wording - "Held until is on" reads as nonsense. */
+var HOLD_NAME={holdUnpaid:'Payment',holdDate:'A dated hold',holdApproval:'Approval'};
+function heldOf(k){return (k&&k.hold&&k.hold.why)?k.hold:null}
+/* The release happens BY ITSELF - nobody has to remember to look. Returns what came free. */
+function releaseHolds(){
+  var out=[];B().book.forEach(function(k){
+    var h=heldOf(k);if(!h||k.status==='cancelled')return;
+    if(h.why==='date'&&h.until&&h.until<=TODAY){k.hold=null;out.push(k)}
+    else if(h.why==='unpaid'&&k.paid){k.hold=null;out.push(k)}
+  });
+  return out;
+}
+/* Which flavours this business has chosen. One switch per flavour, so a business on a
+   monthly allowance can leave the unpaid hold off entirely (12.9). */
+function holdWhyOn(why){var R=B().rules||{};if(!R.holdOn)return false;return !!{unpaid:R.holdUnpaid,date:R.holdDate,approval:R.holdApproval}[why]}
+function holdDays(){var n=Math.round(+(B().rules||{}).holdDays);return isFinite(n)&&n>0?Math.min(30,n):10}
+/* The last day a dated hold may keep a slot, counted back from the lesson itself. */
+function holdUntil(date){return ds(addD(pd(date),-holdDays()))}
+/* Put a booking on hold. Returns the hold, or null when this business has it switched off. */
+function holdBooking(k,why){
+  if(!k||!holdWhyOn(why))return null;
+  var h={why:why,at:TODAY,until:why==='date'?holdUntil(k.date):null};
+  k.hold=h;return h;
+}
 function feeFor(k,type){var R=B().rules,pct=type==='late'?R.lateFeePct:type==='noshow'?R.noShowFeePct:0;return Math.round((k.price||0)*(pct||0)/100)}
 /* work out the fee and the refund for a booking, given how it ended */
 function settle(k,type){var fee=feeFor(k,type);k.fee=fee;k.refund=(k.paid&&!k.credit)?Math.max(0,(k.price||0)-fee):0;k.feeDue=k.paid?0:fee}
@@ -3974,7 +4007,10 @@ function cancelNote(k){
   return 'Cancelled';
 }
 function bookBadge(k){
-  var s=bState(k);
+  var s=bState(k),hd=heldOf(k);
+  /* B5: a booking that is WAITING says so before it says "Booked" - the whole point is that
+     nobody has to remember it is not confirmed yet. */
+  if(hd&&s==='booked')return '<span class="badge warn">'+(hd.why==='date'&&hd.until?'Held until '+esc(fdate(hd.until)):esc(HOLD_LBL[hd.why]))+'</span>';
   if(s==='cancelled')return '<span class="badge '+(k.cancelType==='late'?'warn':'n')+'">'+esc(cancelNote(k))+(k.refund>0?' · '+money(k.refund)+' refunded':'')+(k.creditBack?' · credit returned':'')+'</span>';
   if(s==='noshow')return '<span class="badge bad">No-show'+(k.fee?(k.credit?' · credit used':' · '+money(k.fee)+' fee'):'')+'</span>';
   if(s==='done')return '<span class="badge ok">'+CHECK+' Completed</span>';
@@ -3996,11 +4032,18 @@ function segsOf(x){
   return out;
 }
 function bookingPanel(k){
-  var x=shiftOf(k.shift),sv=bState(k),sg=suggestCancel(k),sel=startsEx(x,k.len,k.id,svcOf(k.svc));
+  var x=shiftOf(k.shift),sv=bState(k),hd=heldOf(k),sg=suggestCancel(k),sel=startsEx(x,k.len,k.id,svcOf(k.svc));
   var types=[['ontime','Cancelled in time'],['late','Late cancel'],['staff','Cancelled by us']];
   var h='<div class="lpanel"><div class="fgrid"><label class="field" for="nt'+k.id+'">Note<input id="nt'+k.id+'" type="text" value="'+esc(k.note||'')+'" placeholder="e.g. first visit, needs extra help" data-c="bnote" data-id="'+k.id+'"></label>';
   if(sv==='booked')h+='<label class="field" for="mv'+k.id+'">Move to<select id="mv'+k.id+'" data-c="bmove" data-id="'+k.id+'">'+sel.map(function(t){return '<option value="'+t+'"'+(t===k.t?' selected':'')+'>'+fm(t)+' – '+fm(t+k.len)+'</option>'}).join('')+'</select></label>';
   h+='</div>';
+  /* B5: this is the ONE place a human releases a wait. The other two kinds release
+     themselves - a date arrives, the money lands - but an approval waits for a person. */
+  if(hd&&sv==='booked'){
+    h+='<div><div class="eyebrow" style="margin-bottom:8px">'+esc(HOLD_LBL[hd.why])+(hd.until?' · until '+esc(fdate(hd.until)):'')+'</div><div class="row" style="gap:8px;flex-wrap:wrap">'+
+      (canSupervise()?'<button class="btn sm pri" data-a="holdok" data-id="'+k.id+'">Approve and confirm</button><button class="btn sm" data-a="holdno" data-id="'+k.id+'">Decline</button>':'<span class="sm muted">A manager releases this one.</span>')+
+      '</div></div>';
+  }
   if(sv==='booked'){
     h+='<div><div class="eyebrow" style="margin-bottom:8px">Cancel this booking</div><div class="ctypes">'+
       types.map(function(t){return '<button class="ctype'+(t[0]===sg?' sug':'')+'" data-a="bcancel" data-id="'+k.id+'" data-type="'+t[0]+'"><b>'+t[1]+'</b><span>'+feeText(k,t[0])+'</span>'+(t[0]===sg?'<em>Suggested</em>':'')+'</button>'}).join('')+'</div>'+
@@ -4156,6 +4199,11 @@ function payCart(){
     k={id:uid('b'),date:it.x.date,loc:it.x.loc,shift:it.x.id,sid:it.x.sid,t:it.c.t,len:it.sv.min,client:p.name,age:p.age,pid:p.id,cust:u.id,svc:it.sv.id,svcName:it.sv.name,paid:true,ref:base+(plan.rows.length>1?'-'+(i+1):'')};
     if(r.pk){r.pk.left--;k.credit=r.pk.id;k.price=packValue(r.pk);credits++}else k.price=it.sv.cents;
     B().book.push(k);n++;
+    /* B5: decide AT THE MOMENT OF BOOKING whether this one waits. A too-close pairing on a
+       service that asks for approval waits for a person; a booking made further ahead than
+       the hold window waits for its date. Either way it releases itself - nobody looks. */
+    if(plan.problems.some(function(pp){return pp.kind==='wait'&&pp.sv===it.sv.id}))holdBooking(k,'approval');
+    else if(holdWhyOn('date')&&pd(k.date)>addD(pd(TODAY),holdDays()))holdBooking(k,'date');
   });
   ui.cart=[];ui.review=false;ui.client='';ui.cage='';ui.pid=null;ui.page='mine';setHash('mine');
   toast('Booked '+n+' '+LB().session.toLowerCase()+(n===1?'':'s')+(plan.due?' · '+money(plan.due)+' paid (simulated)':'')+(credits?' · '+credits+' package credit'+(credits===1?'':'s')+' used':'')+'. Confirmation '+base);
@@ -4251,6 +4299,10 @@ function putFocus(fk){
 function paint(){var k=grabScroll(),fk=grabFocus();paintNow();putScroll(k);putFocus(fk)}
 function paintNow(){
   var app=document.getElementById('app'),layer=document.getElementById('layer');
+  /* B5: the release happens BY ITSELF. Opening the app is the moment a dated hold whose day
+     has come - or an unpaid hold whose money has landed - comes free, with nobody looking.
+     Guarded on the business so it cannot run before anyone is signed in, and once per business. */
+  if(CURB&&ui.holdsDone!==CURB.id){ui.holdsDone=CURB.id;var hfree=releaseHolds();if(hfree.length)toast(hfree.length+' booking'+(hfree.length===1?'':'s')+' came free - the wait was over')}
   if(!DB.session){app.innerHTML=viewLogin();layer.innerHTML=(ui.toast?'<div class="toast" role="status">'+esc(ui.toast)+'</div>':'');applyHermesTaxonomyChameleon();return}
   if(DB.session.platform){if(!PLATPAGES[ui.page])ui.page=NAV.platform[0][0];app.innerHTML=platShell(PLATPAGES[ui.page]());layer.innerHTML=(ui.toast?'<div class="toast" role="status">'+esc(ui.toast)+'</div>':'');return}
   if(serverMode()&&DB.session.biz&&SYNC.state!=='ready'){app.innerHTML=syncView();layer.innerHTML=(ui.toast?'<div class="toast" role="status">'+esc(ui.toast)+'</div>':'');return}   /* live mode: skeleton until the server answers */
@@ -4361,6 +4413,10 @@ document.addEventListener('click',function(e){
   else if(a==='iview'){ui.iview=el.dataset.v}
   else if(a==='inext'){var nd=pd(el.dataset.d);ui.week=Math.round((mondayOf(nd)-mondayOf(T0))/(7*864e5));ui.day=dIdx(el.dataset.d)}
   else if(a==='bmore'){ui.bk=ui.bk===el.dataset.id?null:el.dataset.id}
+  /* B5: releasing a wait by hand. Approving clears the hold; declining cancels it as an
+     in-time cancel, so a wait that is refused costs the family nothing. */
+  else if(a==='holdok'){var ko=bookingOf(el.dataset.id);if(!ko||!canSupervise())return;ko.hold=null;toast((ko.client||'That booking')+' is confirmed')}
+  else if(a==='holdno'){var kq=bookingOf(el.dataset.id);if(!kq||!canSupervise())return;kq.hold=null;classifyCancel(kq,'ontime');ui.bk=null;toast((kq.client||'That booking')+' was released - nothing was charged')}
   else if(a==='checkin'){var kc=bookingOf(el.dataset.id);if(kc&&canManage(kc)&&bState(kc)==='booked'&&canCheckIn(kc)){kc.att='in';kc.inAt=Date.now();toast(kc.client+' checked in')}}
   else if(a==='bdone'){var kd=bookingOf(el.dataset.id);if(kd&&canManage(kd)&&bState(kd)==='in'){kd.att='done';toast(kd.client+' marked completed')}}
   else if(a==='bundo'){var ku=bookingOf(el.dataset.id);if(ku&&canManage(ku)&&['in','done','noshow'].indexOf(bState(ku))>-1){if(ku.att==='noshow'){ku.fee=0;ku.refund=0;ku.feeDue=0}ku.att=null;ku.inAt=null;toast('Back to booked')}}
@@ -4459,6 +4515,17 @@ document.addEventListener('click',function(e){
   else if(a==='moredel'){if(!canRules())return;var sd=svcOf(el.dataset.id);if(sd&&sd.more){sd.more.splice(+el.dataset.i,1);submitOffering(sd)}}
   else if(a==='clen'){ui.clen=ui.clen||{};ui.clen[el.dataset.id]=+el.dataset.v}
   else if(a==='onlineAll'){B().rules.onlineOn=!B().rules.onlineOn;toast(B().rules.onlineOn?'Online booking is on':'Online booking paused')}
+  /* B5: the master switch. Turning it OFF releases everything it was holding, so a rule can
+     never keep acting after the control that set it has gone from the screen. */
+  else if(a==='holdAll'){
+    B().rules.holdOn=!B().rules.holdOn;if(!B().rules.holdOn){var freed=[];B().book.forEach(function(k2){if(heldOf(k2)){k2.hold=null;freed.push(k2)}});toast('Holding bookings is off'+(freed.length?' - '+freed.length+' booking'+(freed.length===1?'':'s')+' released':' - nothing was waiting'))}else toast('Holding bookings is on. Now choose what a booking waits for.')
+  }
+  else if(a==='holdtog'){
+    var hk=el.dataset.k,hwhy={holdUnpaid:'unpaid',holdDate:'date',holdApproval:'approval'}[hk];if(!hwhy)return;
+    B().rules[hk]=!B().rules[hk];
+    if(!B().rules[hk]){var off=0;B().book.forEach(function(k3){var h3=heldOf(k3);if(h3&&h3.why===hwhy){k3.hold=null;off++}});toast(HOLD_NAME[hk]+' is off'+(off?' - '+off+' released':''))}
+    else toast(HOLD_NAME[hk]+' is on'+(hwhy==='date'?' - a booking made more than '+holdDays()+' days ahead waits until then':''))
+  }
   else if(a==='toggleAdd'){ui.addStaff=!ui.addStaff;ui.ns=null}
   else if(a==='certfor'){if(staffOf(el.dataset.id))ui.certFor=el.dataset.id}
   else if(a==='editStaff'){ui.editStaff=ui.editStaff===el.dataset.id?null:el.dataset.id}
