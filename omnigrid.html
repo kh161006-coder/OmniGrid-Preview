@@ -931,12 +931,12 @@ function activeStaff(){return B().staff.filter(function(s){return s.active})}
 function activeLocs(){return B().locations.filter(function(l){return l.active})}
 /* vocabulary: always a non-empty string, falling back to universal defaults */
 /* ===== INDUSTRY PACKS — GENERATED FROM THE DATABASE, DO NOT HAND-EDIT =====
-   Regenerated from the live API on 03 Nov 2026 17:57.
+   Regenerated from the live API on 04 Nov 2026 02:58.
    industry_packs is the single source of truth; this block is a build artifact of it,
    kept in the file so the page still works with no server (and in the demo).
    To change a word, change the row and regenerate: node build-app-pack.mjs --write
    ===== */
-var PACKS = {"generic":{"key":"generic","label":"Universal scheduling (generic)","sort_order":10,"words":{"name":"Universal service","provider":"Provider","providerPlural":"Providers","consumer":"Consumer","booking":"Booking","consumerPlural":"Consumers","bookingPlural":"Bookings","place":"Location","placePlural":"Locations","group":"Class","groupPlural":"Classes","week":"Schedule","package":"Package","packagePlural":"Packages"}},"aquatics":{"key":"aquatics","label":"Aquatics and swim coaching networks","sort_order":20,"words":{"name":"Aquatics and swim school","provider":"Instructor","providerPlural":"Instructors","consumer":"Swimmer","booking":"Lesson","consumerPlural":"Swimmers","bookingPlural":"Lessons","place":"Lane","placePlural":"Lanes","group":"Class","groupPlural":"Classes","week":"Roster","package":"Pass","packagePlural":"Passes"}},"fleet":{"key":"fleet","label":"Fleet logistics and field crews","sort_order":30,"words":{"name":"Fleet logistics","provider":"Technician","providerPlural":"Technicians","consumer":"Account","booking":"Service visit","consumerPlural":"Accounts","bookingPlural":"Service visits","place":"Bay","placePlural":"Bays","group":"Crew","groupPlural":"Crews","week":"Route","package":"Service plan","packagePlural":"Service plans"}},"home_services":{"key":"home_services","label":"Home services and HVAC systems","sort_order":40,"words":{"name":"Home services and HVAC","provider":"Service specialist","providerPlural":"Service specialists","consumer":"Client","booking":"Appointment","consumerPlural":"Clients","bookingPlural":"Appointments","place":"Address","placePlural":"Addresses","group":"Team","groupPlural":"Teams","week":"Schedule","package":"Maintenance plan","packagePlural":"Maintenance plans"}}};
+var PACKS = {"generic":{"key":"generic","label":"Universal scheduling (generic)","sort_order":10,"words":{"name":"Universal service","provider":"Provider","providerPlural":"Providers","consumer":"Consumer","booking":"Booking","consumerPlural":"Consumers","bookingPlural":"Bookings","place":"Location","placePlural":"Locations","group":"Class","groupPlural":"Classes","week":"Schedule","package":"Package","packagePlural":"Packages","course":"Course","coursePlural":"Courses","stage":"Stage","stagePlural":"Stages"}},"aquatics":{"key":"aquatics","label":"Aquatics and swim coaching networks","sort_order":20,"words":{"name":"Aquatics and swim school","provider":"Instructor","providerPlural":"Instructors","consumer":"Swimmer","booking":"Lesson","consumerPlural":"Swimmers","bookingPlural":"Lessons","place":"Lane","placePlural":"Lanes","group":"Class","groupPlural":"Classes","week":"Roster","package":"Pass","packagePlural":"Passes","course":"Course","coursePlural":"Courses","stage":"Level","stagePlural":"Levels"}},"fleet":{"key":"fleet","label":"Fleet logistics and field crews","sort_order":30,"words":{"name":"Fleet logistics","provider":"Technician","providerPlural":"Technicians","consumer":"Account","booking":"Service visit","consumerPlural":"Accounts","bookingPlural":"Service visits","place":"Bay","placePlural":"Bays","group":"Crew","groupPlural":"Crews","week":"Route","package":"Service plan","packagePlural":"Service plans","course":"Programme","coursePlural":"Programmes","stage":"Stage","stagePlural":"Stages"}},"home_services":{"key":"home_services","label":"Home services and HVAC systems","sort_order":40,"words":{"name":"Home services and HVAC","provider":"Service specialist","providerPlural":"Service specialists","consumer":"Client","booking":"Appointment","consumerPlural":"Clients","bookingPlural":"Appointments","place":"Address","placePlural":"Addresses","group":"Team","groupPlural":"Teams","week":"Schedule","package":"Maintenance plan","packagePlural":"Maintenance plans","course":"Programme","coursePlural":"Programmes","stage":"Stage","stagePlural":"Stages"}}};
 /* Map a pack's words onto the label keys the page already uses (staff/staffPlural/...). */
 function packLabels(k){
   var p=PACKS[k]||PACKS.generic||{words:{}},w=p.words||{};
@@ -946,12 +946,19 @@ function packLabels(k){
     session:s(w.booking,'Appointment'),sessionPlural:s(w.bookingPlural,'Appointments'),
     place:s(w.place,'Location'),placePlural:s(w.placePlural,'Locations'),
     group:s(w.group,'Class'),groupPlural:s(w.groupPlural,'Classes'),
-    week:s(w.week,'Schedule'),package:s(w.package,'Package'),packagePlural:s(w.packagePlural,'Packages')};
+    week:s(w.week,'Schedule'),package:s(w.package,'Package'),packagePlural:s(w.packagePlural,'Packages'),
+    /* B1: the course of lessons and the stage the person is at. Universal words, translated
+       per industry by the pack row (aquatics: Course / Level). */
+    course:s(w.course,'Course'),coursePlural:s(w.coursePlural,'Courses'),
+    stage:s(w.stage,'Stage'),stagePlural:s(w.stagePlural,'Stages')};
 }
 /* The fallback words, used only if a business names no pack. The pack supplies the rest. */
 var LBDEF={staff:'Provider',staffPlural:'Providers',client:'Customer',clientPlural:'Customers',
   session:'Appointment',sessionPlural:'Appointments',place:'Location',placePlural:'Locations',
-  group:'Class',groupPlural:'Classes',week:'Schedule',package:'Package',packagePlural:'Packages'};
+  group:'Class',groupPlural:'Classes',week:'Schedule',package:'Package',packagePlural:'Packages',
+  /* B1: a course of lessons and the swimmer's stage. Universal tokens here; each pack below
+     translates them in its own voice - an aquatics programme calls a stage a Level. */
+  course:'Course',coursePlural:'Courses',stage:'Stage',stagePlural:'Stages'};
 function indef(w){return /^[aeiou]/i.test(w)?'an ':'a '}   /* a / an before a vocabulary word */
 function LB(){var l=(B()&&B().labels)||{},o={};Object.keys(LBDEF).forEach(function(k){var v=l[k];o[k]=(typeof v==='string'&&v.trim())?v.trim():LBDEF[k]});return o}
 
@@ -2886,8 +2893,10 @@ function createBusiness(r){
   if(allBiz().some(function(b){return b.users.some(function(u){return u.email===em})}))return 'That email already has an account in another business.';
   if(String(r.pw||'').length<8)return 'Use a temporary password of at least 8 characters.';
   var id='b'+uid('').slice(0,6);
-  var T=r.vertical?taxonomyOf(r.vertical):null;   /* the public sign-up picks an industry wording; the platform console keeps the plain defaults */
-  var b=mkBiz({id:id,slug:slug,name:nm,labels:T?{staff:T.provider,staffPlural:T.providers,client:T.consumer,session:T.booking}:{staff:'Provider',staffPlural:'Providers',client:'Customer',session:'Appointment'},
+  /* The public sign-up picks an industry wording. It takes the whole pack, not a hand-picked
+     four words: packLabels carries place/group/week/package and the course and stage too, so a
+     business created here reads as its own industry everywhere the page says a word. */
+  var b=mkBiz({id:id,slug:slug,name:nm,labels:packLabels(r.vertical),
     locs:[['Main site','',wk([9,17],[9,17],null),[[9,17,1,1]]]],
     services:[['Standard booking',30,3000]],classes:[['Staff',true,'']],
     owner:[on,em],manager:['x','x@x'],customer:['x','y@y'],staff:[]});
@@ -3355,7 +3364,7 @@ function pgPeople(){
   var u=me(),L=LB(),pp=u.people||[];
   var h=pageHead('Customer portal','My people','Who you book for: a child, a family member or yourself. Their name and age are shown to the '+LB().staff.toLowerCase()+'.');
   h+='<div class="stack">'+(pp.length?pp.map(function(q){var pst=passOf('p:'+q.id),stg=stageOf('p:'+q.id);return '<div class="card" style="display:grid;gap:10px"><div class="fgrid"><label class="field" for="pn'+q.id+'">Name<input id="pn'+q.id+'" type="text" value="'+esc(q.name)+'" data-c="pfield" data-id="'+q.id+'" data-field="name"></label><label class="field" for="pa'+q.id+'">Age<input id="pa'+q.id+'" type="number" min="0" max="120" inputmode="numeric" value="'+esc(q.age)+'" data-c="pfield" data-id="'+q.id+'" data-field="age"></label></div><div class="row sp"><span class="muted sm">'+B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length+' booking'+(B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length===1?'':'s')+'</span>'+/* E4: a family sees a standing only when there IS one - never "not recorded", because where pass or fail is off the child is simply not being scored, and an empty badge would score them. */
-      (stg?'<span class="badge n">Stage: '+esc(stg)+'</span>':'')+
+      (stg?'<span class="badge n">'+esc(LB().stage)+': '+esc(stg)+'</span>':'')+
       (pst?'<span class="badge '+(pst==='passed'?'ok':'bad')+'">'+(pst==='passed'?'Passed':'Not passed')+'</span>':'')+
       '<button class="btn sm danger" data-a="pdel" data-id="'+q.id+'">Remove</button></div></div>'}).join(''):'<div class="card flat muted">Nobody saved yet. Add someone below, or when you book.</div>')+'</div>';
   h+='<form class="card" data-f="padd" style="display:grid;gap:14px"><h3>Add a person</h3><div class="fgrid"><label class="field" for="pnn">Name<input id="pnn" type="text" required></label><label class="field" for="pna">Age<input id="pna" type="number" min="0" max="120" inputmode="numeric"></label></div><div><button class="btn pri" type="submit">Add</button></div></form>';
@@ -3662,10 +3671,10 @@ function allSwimmers(){
   return out;
 }
 function courseRow(c){
-  var sv=svcOf(c.svc),st=staffOf(c.sid),used=courseUsed(c),left=courseLeft(c),stg=stageOf(c.who),end=courseEnd(c),done=c.status==='done';
+  var L=LB(),sv=svcOf(c.svc),st=staffOf(c.sid),used=courseUsed(c),left=courseLeft(c),stg=stageOf(c.who),end=courseEnd(c),done=c.status==='done';
   return '<div class="crsrow"><div style="min-width:0"><b>'+esc(c.name||'Unnamed')+'</b>'+
     '<div class="muted sm">'+esc(sv?sv.name:'(service removed)')+(st?' · lead '+esc(st.name):'')+(c.weeks?' · '+c.weeks+' week'+(+c.weeks===1?'':'s'):'')+(c.start?' · from '+esc(fdate(c.start)):'')+(end?' to '+esc(fdate(ds(end))):'')+'</div>'+
-    '<div class="sm">Stage: '+(stg?'<b>'+esc(stg)+'</b>':'<span class="muted">not set</span>')+'</div></div>'+
+    '<div class="sm">'+esc(L.stage)+': '+(stg?'<b>'+esc(stg)+'</b>':'<span class="muted">not set</span>')+'</div></div>'+
     '<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">'+
       '<span class="badge '+(done?'n':left>0?'ok':'warn')+'">'+used+' of '+(+c.bought||0)+' used'+(done?'':' · '+left+' left')+'</span>'+
       '<button class="btn sm" data-a="courseDone" data-id="'+c.id+'">'+(done?'Reopen':'Mark done')+'</button>'+
@@ -3673,10 +3682,10 @@ function courseRow(c){
     '</div></div>';
 }
 function courseAdd(){
-  if(!ui.courseAdd)return '<div><button class="btn" data-a="courseaddopen">+ Add a course</button></div>';
+  if(!ui.courseAdd)return '<div><button class="btn" data-a="courseaddopen">+ Add a '+esc(LB().course.toLowerCase())+'</button></div>';
   var L=LB(),sw=allSwimmers(),ts=activeStaff(),svs=activeSvcs();
-  if(!sw.length)return '<p class="sm muted">Nobody has booked yet, so there is nobody to put on a course.</p>';
-  if(!svs.length)return '<p class="sm muted">Add a service first - a course is lessons of something.</p>';
+  if(!sw.length)return '<p class="sm muted">Nobody has booked yet, so there is nobody to put on a '+esc(L.course.toLowerCase())+'.</p>';
+  if(!svs.length)return '<p class="sm muted">Add a service first - a '+esc(L.course.toLowerCase())+' is lessons of something.</p>';
   return '<form data-f="addCourse" class="row crsadd">'+
     '<label class="field grow" for="cw">'+esc(L.client)+'<select id="cw">'+sw.map(function(x){return '<option value="'+esc(x.who)+'">'+esc(x.name)+'</option>'}).join('')+'</select></label>'+
     '<label class="field" for="cs">What they are taking<select id="cs">'+svs.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join('')+'</select></label>'+
@@ -3684,30 +3693,30 @@ function courseAdd(){
     '<label class="field" for="cip">Lead '+esc(L.staff.toLowerCase())+'<select id="cip"><option value="">Not decided</option>'+ts.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join('')+'</select></label>'+
     '<label class="field" for="cd">First week<input id="cd" type="date" value="'+TODAY+'" required></label>'+
     '<label class="field" for="ck">Weeks it runs<input id="ck" type="number" min="1" max="52" value="6" required></label>'+
-    '<label class="field" for="cg">Stage<input id="cg" type="text" maxlength="40" placeholder="e.g. Intro, or Level 2"></label>'+
-    '<div class="row" style="align-self:end;gap:6px"><button class="btn pri" type="submit">Add course</button><button class="btn" type="button" data-a="courseaddclose">Cancel</button></div></form>';
+    '<label class="field" for="cg">'+esc(L.stage)+'<input id="cg" type="text" maxlength="40" placeholder="e.g. Intro, or Level 2"></label>'+
+    '<div class="row" style="align-self:end;gap:6px"><button class="btn pri" type="submit">Add '+esc(L.course.toLowerCase())+'</button><button class="btn" type="button" data-a="courseaddclose">Cancel</button></div></form>';
 }
 function courseBlock(){
   var L=LB(),cs=coursesOf(),live=cs.filter(function(c){return c.status!=='done'}).length;
-  var h='<div class="card" style="display:grid;gap:14px"><div><h3>Courses</h3><p class="muted sm" style="margin-top:4px">A course is one '+esc(L.client.toLowerCase())+' on a set number of lessons with a lead '+esc(L.staff.toLowerCase())+'. Lessons used are counted from the bookings, so a course always matches what actually happened. The stage is kept on the '+esc(L.client.toLowerCase())+' and only read here.</p></div>';
-  h+='<div class="row sp sm muted"><span>'+cs.length+' course'+(cs.length===1?'':'s')+(live?' · '+live+' running':'')+'</span></div>';
-  h+='<div class="crselist">'+(cs.length?cs.map(courseRow).join(''):'<p class="sm muted">No courses yet. A course is what ties one lesson to the next - add the first one below.</p>')+'</div>';
+  var h='<div class="card" style="display:grid;gap:14px"><div><h3>'+esc(L.coursePlural)+'</h3><p class="muted sm" style="margin-top:4px">A '+esc(L.course.toLowerCase())+' is one '+esc(L.client.toLowerCase())+' on a set number of lessons with a lead '+esc(L.staff.toLowerCase())+'. Lessons used are counted from the bookings, so a '+esc(L.course.toLowerCase())+' always matches what actually happened. The '+esc(L.stage.toLowerCase())+' is kept on the '+esc(L.client.toLowerCase())+' and only read here.</p></div>';
+  h+='<div class="row sp sm muted"><span>'+cs.length+' '+esc((cs.length===1?L.course:L.coursePlural).toLowerCase())+(live?' · '+live+' running':'')+'</span></div>';
+  h+='<div class="crselist">'+(cs.length?cs.map(courseRow).join(''):'<p class="sm muted">No '+esc(L.coursePlural.toLowerCase())+' yet. A '+esc(L.course.toLowerCase())+' is what ties one lesson to the next - add the first one below.</p>')+'</div>';
   return h+courseAdd()+'</div>';
 }
 /* the swimmer's own view: the stage, what is left, and who leads it */
 function coursePanel(key){
-  var c=openCourse(key)||coursesFor(key)[0],stg=stageOf(key);
+  var L=LB(),c=openCourse(key)||coursesFor(key)[0],stg=stageOf(key);
   if(!c&&!stg)return '';
   var st=c?staffOf(c.sid):null,end=c?courseEnd(c):null;
-  var h='<div class="card" style="display:grid;gap:10px"><div class="row sp"><h3>Course</h3><span class="badge n">'+(stg?'Stage: '+esc(stg):'No stage set')+'</span></div>';
+  var h='<div class="card" style="display:grid;gap:10px"><div class="row sp"><h3>'+esc(L.course)+'</h3><span class="badge n">'+(stg?esc(L.stage)+': '+esc(stg):'No '+esc(L.stage.toLowerCase())+' set')+'</span></div>';
   if(c){
     h+='<p class="sm muted">'+esc(svcOf(c.svc)?svcOf(c.svc).name:'(service removed)')+(st?' with '+esc(st.name):'')+(c.weeks?' · '+c.weeks+' weeks':'')+(end?' · to '+esc(fdate(ds(end))):'')+'</p>'+
       '<div class="row" style="gap:8px;flex-wrap:wrap"><span class="badge '+(courseLeft(c)>0?'ok':'warn')+'">'+courseUsed(c)+' of '+(+c.bought||0)+' lessons used</span>'+
       (courseLeft(c)>0?'<span class="badge ok">'+courseLeft(c)+' left</span>':'<span class="badge warn">All used</span>')+'</div>';
   }else{
-    h+='<p class="sm muted">No course on file yet. The stage above is what the booking side reads.</p>';
+    h+='<p class="sm muted">No '+esc(L.course.toLowerCase())+' on file yet. The '+esc(L.stage.toLowerCase())+' above is what the booking side reads.</p>';
   }
-  h+='<label class="field" for="sgx">Stage<input id="sgx" type="text" maxlength="40" value="'+esc(stg)+'" placeholder="e.g. Intro, or Level 2" data-c="stageSet" data-k="'+esc(key)+'"></label>';
+  h+='<label class="field" for="sgx">'+esc(L.stage)+'<input id="sgx" type="text" maxlength="40" value="'+esc(stg)+'" placeholder="e.g. Intro, or Level 2" data-c="stageSet" data-k="'+esc(key)+'"></label>';
   return h+'</div>';
 }
 function pgBooking(){
@@ -4429,13 +4438,13 @@ document.addEventListener('click',function(e){
     if(!canRules())return;
     var cdn=coursesOf().filter(function(x){return x.id===el.dataset.id})[0];if(!cdn)return;
     cdn.status=cdn.status==='done'?'':'done';save();paint();
-    toast(cdn.status==='done'?'Course closed':'Course reopened');
+    toast(cdn.status==='done'?LB().course+' closed':LB().course+' reopened');
   }
   else if(a==='courseDel'){
     if(!canRules())return;
     var cdl=(B().courses||[]).filter(function(x){return x.id===el.dataset.id})[0];if(!cdl)return;
     B().courses=(B().courses||[]).filter(function(x){return x.id!==cdl.id});
-    save();paint();toast('Course removed. The bookings it counted are untouched.');
+    save();paint();toast(LB().course+' removed. The bookings it counted are untouched.');
   }
   else if(a==='bkclearhours'){if(!canRules())return;var sch=svcOf(el.dataset.id);if(!sch||!sch.bk)return;var cb={};Object.keys(sch.bk).forEach(function(k){cb[k]=sch.bk[k]});cb.early='';cb.late='';sch.bk=bkClean(cb);submitOffering(sch);toast('Daily hour limits cleared')}
   else if(a==='bktoggle'){if(!canRules())return;ui.bkOpen=ui.bkOpen||{};ui.bkOpen[el.dataset.id]=!ui.bkOpen[el.dataset.id]}
@@ -4674,7 +4683,7 @@ document.addEventListener('submit',function(e){
       sid:v('cip')||'',start:cstart,weeks:cweeks,status:'',created:TODAY});
     if(cstg)setStage(cwho,cstg);   /* the stage belongs to the swimmer, so it is written there */
     ui.courseAdd=false;save();paint();
-    toast('Course added'+(cstg?' · stage set to '+cstg:''));
+    toast(LB().course+' added'+(cstg?' · '+LB().stage.toLowerCase()+' set to '+cstg:''));
   }
   else if(f==='addPkg'&&me().role!=='customer'){
     var psv=e.target.dataset.svc||'',pk0=psv||'any',psvc=svcOf(psv);
