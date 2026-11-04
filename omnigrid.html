@@ -1292,7 +1292,12 @@ function svcVar(s,min){
    'employee' - the very thing the migration turns a manager record into - so a tier string arriving
    from an older export lands on a real role instead of nowhere. */
 var TIER_ROLE={Super_User:'owner',Business_Admin:'owner',Manager:'employee',Employee:'employee',Customer:'customer'};   /* Business_Admin is the backend's synonym for super user; it used to map to 'admin', a role that exists in NO other list (NAV/PAGES/PORTAL/ROLEWORD), so such a user would have passed verifyUserRole and then crashed in navFor('admin') */
-var OFFERING_ROLES=['Manager','Business_Admin','Super_User'];
+/* §2.3 / §12: this list is RETIRED and must not be used. It named the tier 'Manager', and once the
+   tier stopped resolving, verifyUserRole would have THROWN on it. It was replaced at every call site
+   by canRules() - the one place that decides policy - because the question those sites ask ("may this
+   person see and change what the business sells under?") is exactly the policy question. Keeping the
+   list here as a tombstone so nobody reinstates it by accident. */
+var OFFERING_ROLES=['RETIRED'];
 /* verifyUserRole(['Manager',...]) -> {ok:true,role} or {ok:false,error:{code:'UNAUTHORIZED',message}}. Uses the signed-in person on screen and the signed-in business only. */
 function verifyUserRole(requiredTiers){
   var no={ok:false,error:{code:'UNAUTHORIZED',message:'You do not have permission to perform this action.'}};
@@ -1338,6 +1343,13 @@ function setGrant(cap,kind,who,on){
 }
 /* §12: policy is the super user's alone. This is the ONE place that decides it. */
 function canRules(){var u=me();if(!u)return false;if(u.role==='owner')return true;return hasGrant('policy',u)}
+/* §2.3 / §12: the gate the offerings screens ask for, in ONE place. It used to be
+   verifyUserRole(OFFERING_ROLES) — a tier list naming 'Manager' — which stopped resolving the moment
+   the tier was retired, and would have widened to every employee once the adapter mapped the old name
+   to 'employee'. The question those screens actually ask is the POLICY question ("may you see and
+   change what this business sells under?"), so they ask canRules(). This wrapper keeps the
+   {ok, error} shape the call sites already expected, so nothing else had to move. */
+function rulesGate(){return canRules()?{ok:true}:{ok:false,error:{code:'UNAUTHORIZED',message:'The super user controls this. Ask them to allow you.'}}}
 /* ---- offerings: what is sent when a service's rules are saved ----
    The envelope always names the business the person is signed in to. The server never trusts it for authority (it uses the session) but
    refuses any envelope whose business_id differs from the session's, so a payload built for one business cannot be applied to another. */
@@ -1375,7 +1387,7 @@ function envelopeProblem(env){
 }
 /* the one place a service's rules are submitted: guard, build, check, hand over. Until the page is connected to the server the envelope waits in this business's own outbox. */
 function submitOffering(sv){
-  var g=verifyUserRole(OFFERING_ROLES);if(!g.ok){toast(g.error.message);return g}
+  var g=rulesGate();if(!g.ok){toast(g.error.message);return g}
   if(!sv||!B().services.some(function(s){return s===sv}))return {ok:false,error:{code:'NOT_FOUND',message:'No such service here'}};
   var env=offeringEnvelope(sv),p=envelopeProblem(env);
   if(p){toast(p);return {ok:false,error:{code:'INVALID_INPUT',message:p}}}
@@ -4030,14 +4042,14 @@ function pgBooking(){
     '<div class="svcline"><label class="row" style="gap:8px;font-weight:500;flex:1 1 200px"><input type="checkbox" id="sv4" checked> Also sell one at a time</label><label class="field" for="sv3">Single price ($)<input id="sv3" type="number" min="0" step="0.5" value="35"></label></div>'+
     allocBlock(null,'new')+bkBlock(null,'new')+'<div><button class="btn pri" type="submit">Add service</button></div></form></div>';
   h+=courseBlock();   /* B1: courses sit with the offerings, after the add-a-service form */
-  h=viewPre+(verifyUserRole(OFFERING_ROLES).ok?h:'');   /* Manager, Business_Admin, Super_User only: anyone else gets nothing rendered, not a hidden form */
+  h=viewPre+(rulesGate().ok?h:'');   /* Manager, Business_Admin, Super_User only: anyone else gets nothing rendered, not a hidden form */
   h+=pkgCard();
   h+='</div>';
   h+='<aside class="stack"><div class="card" style="display:grid;gap:10px"><h3>Customers</h3>'+(custs.length?custs.map(function(c){
     var mine=B().book.filter(function(k){return k.cust===c.id&&k.status!=='cancelled'});
     return '<div class="row sp sm"><div style="min-width:0"><b>'+esc(c.name)+'</b><div class="muted" style="overflow-wrap:anywhere">'+esc(c.email)+'</div></div><span class="badge n">'+mine.length+' booking'+(mine.length===1?'':'s')+(function(){var cr=0;(c.packs||[]).forEach(function(p){if(packLive(p))cr+=p.left});return cr?' · '+cr+' credit'+(cr===1?'':'s'):''})()+'</span></div>';
   }).join(''):'<p class="muted sm">No customers yet. They can create an account from the sign-in page.</p>')+'</div></aside></div>';
-  if(verifyUserRole(OFFERING_ROLES).ok)h+=inactiveAccordion(B().services.filter(isTemplateSvc));
+  if(rulesGate().ok)h+=inactiveAccordion(B().services.filter(isTemplateSvc));
   return h;
 }
 
@@ -5090,7 +5102,7 @@ document.addEventListener('submit',function(e){
   else if(f==='register'){ui.regErr=register(ui.reg);if(!ui.regErr){ui.reg={slug:ui.reg.slug,name:'',email:'',pw:''};toast('Welcome! Your account is ready')}}
   else if(f==='addCls'){var cn=v('nc1').trim();if(!cn)return;B().classes.push({id:B().id+'-c'+uid(''),name:cn,bookable:v('nc3')==='yes',reqCert:v('nc2').trim()});toast(cn+' added. Set who holds it on the Staff page and how many are needed on Hours and staffing')}
   else if(f==='addSvc'){
-    var gate=verifyUserRole(OFFERING_ROLES);if(!gate.ok){toast(gate.error.message);return}
+    var gate=rulesGate();if(!gate.ok){toast(gate.error.message);return}
     var sn=v('sv1').trim();if(!sn)return;var kq0=Math.round(+v('sk1')||0);
     /* validate the length and price BEFORE anything is saved */
     var single0=kq0<2?true:!!document.getElementById('sv4').checked;
