@@ -1403,7 +1403,7 @@ function bkFields(sv,mode){
     (mode!=='new'&&(b.early||b.late)?'<div class="bklegacy sm muted" role="note"><span>Daily hours still apply: '+esc(b.early&&b.late?b.early+' to '+b.late:b.early?'from '+b.early:'until '+b.late)+'</span><button class="btn sm" type="button" data-a="bkclearhours" data-id="'+sv.id+'">Clear</button></div>':'');
   /* the per-person limits and the payment hold live together in one "Limits for this service" panel, the hold right after the weekly limit */
   var gOn=mode!=='new'&&!!((ui.gOpen&&ui.gOpen[sv.id])||b.perDay||b.perWeek);   /* the caps show when switched on, or when a cap is already saved */
-  var guard='<fieldset class="bkguard" aria-label="Limits for this service"><legend>Limits for this service</legend><label class="row bkgtog" for="'+P+'gon"><input type="checkbox" id="'+P+'gon"'+(gOn?' checked':'')+' '+(mode==='new'?'data-c="bkgnew"':'data-c="bkguard" data-id="'+sv.id+'"')+'><span>Set limits just for this service?</span></label><div class="bkgrid bkcaps" id="'+P+'caps"'+(gOn?'':' hidden')+'>'+num('perDay','Most per person per day',b.perDay,1,50,'No limit')+num('perWeek','Most per person per week',b.perWeek,1,200,'No limit')+num('minPerWeek','Least per person per week',b.minPerWeek,1,200,'No minimum')+'</div>'+num('minGap','Least minutes between two lessons in one session',b.minGap,0,240,'Default 20')+'<label class="row bkgtog" for="'+P+'b2b"><input type="checkbox" id="'+P+'b2b"'+(bkOf(sv).allowBackToBackApproval?' checked':'')+' '+D('b2b')+'><span>Let a manager approve two lessons back-to-back</span></label><p class="sm muted">Unticked, a second lesson closer than the minutes above is refused outright. Ticked, it is held for a manager instead.</p><div class="bkgrid">'+num('hold','Hold a time for payment (minutes)',b.hold,HOLD_MIN,HOLD_MAX,'10 to 10080 min / Up to 7 Days')+'</div></fieldset>';
+  var guard='<fieldset class="bkguard" aria-label="Limits for this service"><legend>Limits for this service</legend><label class="row bkgtog" for="'+P+'gon"><input type="checkbox" id="'+P+'gon"'+(gOn?' checked':'')+' '+(mode==='new'?'data-c="bkgnew"':'data-c="bkguard" data-id="'+sv.id+'"')+'><span>Set limits just for this service?</span></label><div class="bkgrid bkcaps" id="'+P+'caps"'+(gOn?'':' hidden')+'>'+num('perDay','Most per person per day',b.perDay,1,50,'No limit')+num('perWeek','Most per person per week',b.perWeek,1,200,'No limit')+num('minPerWeek','Least per person per week',b.minPerWeek,1,200,'No minimum')+'</div>'+num('minGap','Least minutes between two lessons in one session',b.minGap,0,240,'Default 20')+'<label class="row bkgtog" for="'+P+'b2b"><input type="checkbox" id="'+P+'b2b"'+(bkOf(sv).allowBackToBackApproval?' checked':'')+' '+D('b2b')+'><span>Allow two lessons this close, approved by the instructor</span></label><p class="sm muted">Unticked, a second lesson closer than the minutes above is refused outright. Ticked, it is held for the instructor instead.</p><div class="bkgrid">'+num('hold','Hold a time for payment (minutes)',b.hold,HOLD_MIN,HOLD_MAX,'10 to 10080 min / Up to 7 Days')+'</div></fieldset>';
   var GRP=mode==='edit'&&sv&&typeof groupPlanner==='function'&&svcCap(sv)>1;   /* group offering: a fixed schedule replaces the open interval, earliest start and finish-by */
   if(GRP)return groupPlanner(sv,P,D)+'<div class="bkgrid">'+num('lead','Book at least (hours ahead)',b.lead,0,720,'Default '+R.noticeHours)+num('ahead','Book up to (days ahead)',b.ahead,1,365,'Default '+R.advanceDays)+'</div>'+guard+'<p class="sm muted">Leave a box empty to use the business-wide rule. Managers can still book any open time by hand.</p>';
   return '<div class="bkgrid">'+ev+num('lead','Book at least (hours ahead)',b.lead,0,720,'Default '+R.noticeHours)+num('ahead','Book up to (days ahead)',b.ahead,1,365,'Default '+R.advanceDays)+hours+days+'</div>'+guard+'<p class="sm muted">Leave a box empty to use the business-wide rule. Managers can still book any open time by hand.</p>';
@@ -1744,6 +1744,11 @@ function homeLane(){
    ONE definition - every "may this person supervise?" test goes through here. This idea used to
    be written four different ways, and one of them named an 'admin' role that exists nowhere. */
 function canSupervise(){var u=me();return !!(u&&(u.role==='owner'||u.role==='manager'))}
+/* Who may release a booking that is waiting (B5)? Decided 2026-11-04: the INSTRUCTOR whose
+   shift it sits on - they are the only person who has actually seen the child - or anyone in
+   charge. Deliberately NOT canManage(k) on its own: that returns true for a CUSTOMER, because
+   canEditShift() only tests `role!=='employee'`. A customer must never reach this. */
+function canRelease(k){var u=me();if(!u)return false;if(canSupervise())return true;return u.role==='employee'&&canManage(k)}
 function adminBanner(){
   var u=me();if(!u||!canSupervise()||ui.page==='booking')return '';
   return '<div class="admin-intercept-action-row fade-in" role="region" aria-label="Administrative shortcut"><div class="intercept-meta-message"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/></svg><p><strong>Administrative session:</strong> signed in as '+ROLEWORD[u.role]+' for '+esc(B().name)+'. Booking limits and payment holds are set in Booking and pricing.</p></div><button class="btn-intercept-redirect-heavy" data-a="nav" data-v="booking">Open service limits</button></div>';
@@ -4044,10 +4049,11 @@ function bookingPanel(k){
   if(sv==='booked')h+='<label class="field" for="mv'+k.id+'">Move to<select id="mv'+k.id+'" data-c="bmove" data-id="'+k.id+'">'+sel.map(function(t){return '<option value="'+t+'"'+(t===k.t?' selected':'')+'>'+fm(t)+' – '+fm(t+k.len)+'</option>'}).join('')+'</select></label>';
   h+='</div>';
   /* B5: this is the ONE place a human releases a wait. The other two kinds release
-     themselves - a date arrives, the money lands - but an approval waits for a person. */
+     themselves - a date arrives, the money lands - but an approval waits for a person.
+     Who that person is: the instructor teaching it, or anyone in charge (canRelease). */
   if(hd&&sv==='booked'){
     h+='<div><div class="eyebrow" style="margin-bottom:8px">'+esc(HOLD_LBL[hd.why])+(hd.until?' · until '+esc(fdate(hd.until)):'')+'</div><div class="row" style="gap:8px;flex-wrap:wrap">'+
-      (canSupervise()?'<button class="btn sm pri" data-a="holdok" data-id="'+k.id+'">Approve and confirm</button><button class="btn sm" data-a="holdno" data-id="'+k.id+'">Decline</button>':'<span class="sm muted">A manager releases this one.</span>')+
+      (canRelease(k)?'<button class="btn sm pri" data-a="holdok" data-id="'+k.id+'">Approve and confirm</button><button class="btn sm" data-a="holdno" data-id="'+k.id+'">Decline</button>':'<span class="sm muted">The instructor or a super user releases this one.</span>')+
       '</div></div>';
   }
   if(sv==='booked'){
@@ -4422,10 +4428,11 @@ document.addEventListener('click',function(e){
   else if(a==='iview'){ui.iview=el.dataset.v}
   else if(a==='inext'){var nd=pd(el.dataset.d);ui.week=Math.round((mondayOf(nd)-mondayOf(T0))/(7*864e5));ui.day=dIdx(el.dataset.d)}
   else if(a==='bmore'){ui.bk=ui.bk===el.dataset.id?null:el.dataset.id}
-  /* B5: releasing a wait by hand. Approving clears the hold; declining cancels it as an
-     in-time cancel, so a wait that is refused costs the family nothing. */
-  else if(a==='holdok'){var ko=bookingOf(el.dataset.id);if(!ko||!canSupervise())return;ko.hold=null;toast((ko.client||'That booking')+' is confirmed')}
-  else if(a==='holdno'){var kq=bookingOf(el.dataset.id);if(!kq||!canSupervise())return;kq.hold=null;classifyCancel(kq,'ontime');ui.bk=null;toast((kq.client||'That booking')+' was released - nothing was charged')}
+  /* B5: releasing a wait by hand. The instructor teaching it, or anyone in charge - see
+     canRelease(). Approving clears the hold; declining cancels it as an in-time cancel, so a
+     wait that is refused costs the family nothing. */
+  else if(a==='holdok'){var ko=bookingOf(el.dataset.id);if(!ko||!canRelease(ko))return;ko.hold=null;toast((ko.client||'That booking')+' is confirmed')}
+  else if(a==='holdno'){var kq=bookingOf(el.dataset.id);if(!kq||!canRelease(kq))return;kq.hold=null;classifyCancel(kq,'ontime');ui.bk=null;toast((kq.client||'That booking')+' was released - nothing was charged')}
   else if(a==='checkin'){var kc=bookingOf(el.dataset.id);if(kc&&canManage(kc)&&bState(kc)==='booked'&&canCheckIn(kc)){kc.att='in';kc.inAt=Date.now();toast(kc.client+' checked in')}}
   else if(a==='bdone'){var kd=bookingOf(el.dataset.id);if(kd&&canManage(kd)&&bState(kd)==='in'){kd.att='done';toast(kd.client+' marked completed')}}
   else if(a==='bundo'){var ku=bookingOf(el.dataset.id);if(ku&&canManage(ku)&&['in','done','noshow'].indexOf(bState(ku))>-1){if(ku.att==='noshow'){ku.fee=0;ku.refund=0;ku.feeDue=0}ku.att=null;ku.inAt=null;toast('Back to booked')}}
