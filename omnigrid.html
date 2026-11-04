@@ -480,6 +480,11 @@ input[type=email],input[type=password],input[type=number],input[type=date],input
 .skillchip small{font-size:12px;color:var(--muted)}
 .skillchip.on small{color:var(--ok)}
 @media (max-width:520px){.skillchips{grid-template-columns:minmax(0,1fr)}}
+/* courses (B1): the manager's list and the add form. Same 48px floor and manipulation as the rest (13). */
+.crselist{display:grid;gap:8px}
+.crsrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:48px;min-width:0}
+.crsadd{align-items:end}
+@media (max-width:520px){.crsrow{grid-template-columns:minmax(0,1fr)}}
 .svchead{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,.8fr) auto;gap:12px;align-items:start}
 .svcnew{display:grid;gap:12px}
 .svcnew .svchead{grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr) minmax(0,.9fr)}
@@ -952,7 +957,7 @@ function LB(){var l=(B()&&B().labels)||{},o={};Object.keys(LBDEF).forEach(functi
 
 /* ---------- seed data: two unrelated businesses ---------- */
 function mkBiz(d){
-  var b={id:d.id,slug:d.slug,name:d.name,labels:d.labels,locations:[],staff:[],users:[],avail:{},pref:{},shifts:[],book:[],hours:{},demand:{},hoursOv:{},needOv:{},classes:[],services:[],packages:[],rules:{onlineOn:true,advanceDays:28,noticeHours:2,cancelHours:24,startStep:10,lateFeePct:50,noShowFeePct:100}};
+  var b={id:d.id,slug:d.slug,name:d.name,labels:d.labels,locations:[],staff:[],users:[],avail:{},pref:{},shifts:[],book:[],hours:{},demand:{},hoursOv:{},needOv:{},classes:[],services:[],packages:[],courses:[],stages:{},rules:{onlineOn:true,advanceDays:28,noticeHours:2,cancelHours:24,startStep:10,lateFeePct:50,noShowFeePct:100}};
   d.classes.forEach(function(c,i){b.classes.push({id:d.id+'-c'+(i+1),name:c[0],bookable:c[1],reqCert:c[2]||''})});
   (d.services||[]).forEach(function(s,i){b.services.push({id:d.id+'-sv'+(i+1),name:s[0],min:s[1],cents:s[2],active:true})});
   d.locs.forEach(function(l,i){
@@ -3124,6 +3129,7 @@ function pgClient(){
   /* staff only, both cards: the standing and the checklist are the instructor's working picture
      for handover, not a report card. A customer never sees either - they get no client link at
      all, and the handlers refuse as well. What a family is TOLD about a pass is E4's switch. */
+  if(u.role!=='customer')h+=coursePanel(key);
   if(u.role!=='customer')h+=passPanel(key,bs);
   if(u.role!=='customer')h+=skillPanel(key,bs);
   h+='<div class="card" style="display:grid;gap:10px"><h3>Upcoming</h3>'+(up.length?up.map(row).join(''):'<p class="muted sm">Nothing booked ahead.</p>')+'</div>';
@@ -3343,7 +3349,8 @@ function personPicker(u){
 function pgPeople(){
   var u=me(),L=LB(),pp=u.people||[];
   var h=pageHead('Customer portal','My people','Who you book for: a child, a family member or yourself. Their name and age are shown to the '+LB().staff.toLowerCase()+'.');
-  h+='<div class="stack">'+(pp.length?pp.map(function(q){var pst=passOf('p:'+q.id);return '<div class="card" style="display:grid;gap:10px"><div class="fgrid"><label class="field" for="pn'+q.id+'">Name<input id="pn'+q.id+'" type="text" value="'+esc(q.name)+'" data-c="pfield" data-id="'+q.id+'" data-field="name"></label><label class="field" for="pa'+q.id+'">Age<input id="pa'+q.id+'" type="number" min="0" max="120" inputmode="numeric" value="'+esc(q.age)+'" data-c="pfield" data-id="'+q.id+'" data-field="age"></label></div><div class="row sp"><span class="muted sm">'+B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length+' booking'+(B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length===1?'':'s')+'</span>'+/* E4: a family sees a standing only when there IS one - never "not recorded", because where pass or fail is off the child is simply not being scored, and an empty badge would score them. */
+  h+='<div class="stack">'+(pp.length?pp.map(function(q){var pst=passOf('p:'+q.id),stg=stageOf('p:'+q.id);return '<div class="card" style="display:grid;gap:10px"><div class="fgrid"><label class="field" for="pn'+q.id+'">Name<input id="pn'+q.id+'" type="text" value="'+esc(q.name)+'" data-c="pfield" data-id="'+q.id+'" data-field="name"></label><label class="field" for="pa'+q.id+'">Age<input id="pa'+q.id+'" type="number" min="0" max="120" inputmode="numeric" value="'+esc(q.age)+'" data-c="pfield" data-id="'+q.id+'" data-field="age"></label></div><div class="row sp"><span class="muted sm">'+B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length+' booking'+(B().book.filter(function(k){return k.pid===q.id&&k.status!=='cancelled'}).length===1?'':'s')+'</span>'+/* E4: a family sees a standing only when there IS one - never "not recorded", because where pass or fail is off the child is simply not being scored, and an empty badge would score them. */
+      (stg?'<span class="badge n">Stage: '+esc(stg)+'</span>':'')+
       (pst?'<span class="badge '+(pst==='passed'?'ok':'bad')+'">'+(pst==='passed'?'Passed':'Not passed')+'</span>':'')+
       '<button class="btn sm danger" data-a="pdel" data-id="'+q.id+'">Remove</button></div></div>'}).join(''):'<div class="card flat muted">Nobody saved yet. Add someone below, or when you book.</div>')+'</div>';
   h+='<form class="card" data-f="padd" style="display:grid;gap:14px"><h3>Add a person</h3><div class="fgrid"><label class="field" for="pnn">Name<input id="pnn" type="text" required></label><label class="field" for="pna">Age<input id="pna" type="number" min="0" max="120" inputmode="numeric"></label></div><div><button class="btn pri" type="submit">Add</button></div></form>';
@@ -3623,6 +3630,79 @@ function inactiveAccordion(list){
   return '<div class="inacc"><button class="inacc-h" type="button" data-a="inacc" aria-expanded="'+open+'" aria-controls="inaccBody">▼ Inactive / System-Generated Templates (Click to Expand) <span class="badge n">'+list.length+'</span></button>'+
     (open?'<div class="inacc-b" id="inaccBody"><p class="sm muted">Hidden from customers. Nothing here is deleted. Switch a service to Active to move it back to the main list.</p>'+list.map(svcCard).join('')+'</div>':'')+'</div>';
 }
+/* ---------- courses (B1 - the keystone). A course is one swimmer on a set number of lessons
+   with a lead provider, starting a given week, at a stage. It exists so that one lesson is
+   related to the next: "this swimmer is on 12 lessons with Sophie, Tuesday and Thursday,
+   evenings" (12.1). Lessons USED are counted from the bookings rather than stored, so a course
+   can never disagree with what actually happened - the same reason a skills mark is its date.
+   The stage lives on the SWIMMER and a course only reads it, because "the level lives on the
+   swimmer" is the load-bearing decision (12.11a): it is the single point where private work,
+   group classes, evaluations and passes all meet. ---------- */
+function coursesOf(){return B().courses||(B().courses=[])}
+function coursesFor(who,svcId){return coursesOf().filter(function(c){return c.who===who&&(!svcId||c.svc===svcId)})}
+function openCourse(who,svcId){var m=coursesFor(who,svcId).filter(function(c){return c.status!=='done'});return m.length?m[m.length-1]:null}
+function courseUsed(c){return B().book.filter(function(k){return k.att==='done'&&k.svc===c.svc&&clientKey(k)===c.who&&(!c.start||k.date>=c.start)}).length}
+function courseLeft(c){return Math.max(0,(+c.bought||0)-courseUsed(c))}
+function courseEnd(c){return c.start?addD(pd(c.start),Math.max(1,(+c.weeks||1))*7-1):null}
+function stageOf(who){return (B().stages||{})[who]||''}
+function setStage(who,v){var m=B().stages||(B().stages={});if(v)m[who]=v;else delete m[who]}
+/* everyone a course could be for: every family's saved people, and every name that has ever
+   booked - so the key chosen here always matches the key a booking carries */
+function allSwimmers(){
+  var seen={},out=[];
+  B().users.forEach(function(u){(u.people||[]).forEach(function(q){var w='p:'+q.id;if(!seen[w]){seen[w]=1;out.push({who:w,name:q.name})}})});
+  B().book.forEach(function(k){var w=clientKey(k);if(!seen[w]){seen[w]=1;out.push({who:w,name:k.client||'(no name)'})}});
+  return out;
+}
+function courseRow(c){
+  var sv=svcOf(c.svc),st=staffOf(c.sid),used=courseUsed(c),left=courseLeft(c),stg=stageOf(c.who),end=courseEnd(c),done=c.status==='done';
+  return '<div class="crsrow"><div style="min-width:0"><b>'+esc(c.name||'Unnamed')+'</b>'+
+    '<div class="muted sm">'+esc(sv?sv.name:'(service removed)')+(st?' · lead '+esc(st.name):'')+(c.weeks?' · '+c.weeks+' week'+(+c.weeks===1?'':'s'):'')+(c.start?' · from '+esc(fdate(c.start)):'')+(end?' to '+esc(fdate(ds(end))):'')+'</div>'+
+    '<div class="sm">Stage: '+(stg?'<b>'+esc(stg)+'</b>':'<span class="muted">not set</span>')+'</div></div>'+
+    '<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">'+
+      '<span class="badge '+(done?'n':left>0?'ok':'warn')+'">'+used+' of '+(+c.bought||0)+' used'+(done?'':' · '+left+' left')+'</span>'+
+      '<button class="btn sm" data-a="courseDone" data-id="'+c.id+'">'+(done?'Reopen':'Mark done')+'</button>'+
+      '<button class="btn sm danger" data-a="courseDel" data-id="'+c.id+'">Remove</button>'+
+    '</div></div>';
+}
+function courseAdd(){
+  if(!ui.courseAdd)return '<div><button class="btn" data-a="courseaddopen">+ Add a course</button></div>';
+  var L=LB(),sw=allSwimmers(),ts=activeStaff(),svs=activeSvcs();
+  if(!sw.length)return '<p class="sm muted">Nobody has booked yet, so there is nobody to put on a course.</p>';
+  if(!svs.length)return '<p class="sm muted">Add a service first - a course is lessons of something.</p>';
+  return '<form data-f="addCourse" class="row crsadd">'+
+    '<label class="field grow" for="cw">'+esc(L.client)+'<select id="cw">'+sw.map(function(x){return '<option value="'+esc(x.who)+'">'+esc(x.name)+'</option>'}).join('')+'</select></label>'+
+    '<label class="field" for="cs">What they are taking<select id="cs">'+svs.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join('')+'</select></label>'+
+    '<label class="field" for="cb">Lessons bought<input id="cb" type="number" min="1" max="200" value="12" required></label>'+
+    '<label class="field" for="cip">Lead '+esc(L.staff.toLowerCase())+'<select id="cip"><option value="">Not decided</option>'+ts.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join('')+'</select></label>'+
+    '<label class="field" for="cd">First week<input id="cd" type="date" value="'+TODAY+'" required></label>'+
+    '<label class="field" for="ck">Weeks it runs<input id="ck" type="number" min="1" max="52" value="6" required></label>'+
+    '<label class="field" for="cg">Stage<input id="cg" type="text" maxlength="40" placeholder="e.g. Intro, or Level 2"></label>'+
+    '<div class="row" style="align-self:end;gap:6px"><button class="btn pri" type="submit">Add course</button><button class="btn" type="button" data-a="courseaddclose">Cancel</button></div></form>';
+}
+function courseBlock(){
+  var L=LB(),cs=coursesOf(),live=cs.filter(function(c){return c.status!=='done'}).length;
+  var h='<div class="card" style="display:grid;gap:14px"><div><h3>Courses</h3><p class="muted sm" style="margin-top:4px">A course is one '+esc(L.client.toLowerCase())+' on a set number of lessons with a lead '+esc(L.staff.toLowerCase())+'. Lessons used are counted from the bookings, so a course always matches what actually happened. The stage is kept on the '+esc(L.client.toLowerCase())+' and only read here.</p></div>';
+  h+='<div class="row sp sm muted"><span>'+cs.length+' course'+(cs.length===1?'':'s')+(live?' · '+live+' running':'')+'</span></div>';
+  h+='<div class="crselist">'+(cs.length?cs.map(courseRow).join(''):'<p class="sm muted">No courses yet. A course is what ties one lesson to the next - add the first one below.</p>')+'</div>';
+  return h+courseAdd()+'</div>';
+}
+/* the swimmer's own view: the stage, what is left, and who leads it */
+function coursePanel(key){
+  var c=openCourse(key)||coursesFor(key)[0],stg=stageOf(key);
+  if(!c&&!stg)return '';
+  var st=c?staffOf(c.sid):null,end=c?courseEnd(c):null;
+  var h='<div class="card" style="display:grid;gap:10px"><div class="row sp"><h3>Course</h3><span class="badge n">'+(stg?'Stage: '+esc(stg):'No stage set')+'</span></div>';
+  if(c){
+    h+='<p class="sm muted">'+esc(svcOf(c.svc)?svcOf(c.svc).name:'(service removed)')+(st?' with '+esc(st.name):'')+(c.weeks?' · '+c.weeks+' weeks':'')+(end?' · to '+esc(fdate(ds(end))):'')+'</p>'+
+      '<div class="row" style="gap:8px;flex-wrap:wrap"><span class="badge '+(courseLeft(c)>0?'ok':'warn')+'">'+courseUsed(c)+' of '+(+c.bought||0)+' lessons used</span>'+
+      (courseLeft(c)>0?'<span class="badge ok">'+courseLeft(c)+' left</span>':'<span class="badge warn">All used</span>')+'</div>';
+  }else{
+    h+='<p class="sm muted">No course on file yet. The stage above is what the booking side reads.</p>';
+  }
+  h+='<label class="field" for="sgx">Stage<input id="sgx" type="text" maxlength="40" value="'+esc(stg)+'" placeholder="e.g. Intro, or Level 2" data-c="stageSet" data-k="'+esc(key)+'"></label>';
+  return h+'</div>';
+}
 function pgBooking(){
   var L=LB(),R=B().rules,custs=B().users.filter(function(u){return u.role==='customer'}),now=Date.now();
   var live=liveBook().filter(function(k){return startMs(k)>=now}),rev=0,soldN=0,soldV=0;live.forEach(function(k){if(k.paid&&!k.credit)rev+=k.price||0});
@@ -3638,6 +3718,7 @@ function pgBooking(){
     '<div class="svcpk"><b>Package</b><div class="pkrow pkadd"><label class="field" for="sk1">Sessions<input id="sk1" type="number" min="2" max="50" value="4"></label><label class="field" for="sk2">Package price ($)<input id="sk2" type="number" min="0" step="0.5" value="120"></label><label class="field" for="sk3">Valid (days)<input id="sk3" type="number" min="7" max="730" value="90"></label><label class="field" for="sk6">Minimum sessions per checkout<input id="sk6" type="number" min="0" max="50" value="0" placeholder="0 = none"></label><label class="row firstonly" style="gap:8px;align-self:end;font-weight:500"><input type="checkbox" id="sk7" checked> First-time customers only</label><label class="row firstonly" style="gap:8px;align-self:end;font-weight:500"><input type="checkbox" id="sk8"> Every checkout, not just the first</label><label class="field regsel" for="sk4">Registration required<select id="sk4"><option value="">None</option><option value="week">Days per week</option><option value="month">Sessions per month</option></select></label><label class="field" for="sk5">How many<input id="sk5" type="number" min="1" max="31" value="2"></label></div></div>'+
     '<div class="svcline"><label class="row" style="gap:8px;font-weight:500;flex:1 1 200px"><input type="checkbox" id="sv4" checked> Also sell one at a time</label><label class="field" for="sv3">Single price ($)<input id="sv3" type="number" min="0" step="0.5" value="35"></label></div>'+
     allocBlock(null,'new')+bkBlock(null,'new')+'<div><button class="btn pri" type="submit">Add service</button></div></form></div>';
+  h+=courseBlock();   /* B1: courses sit with the offerings, after the add-a-service form */
   h=viewPre+(verifyUserRole(OFFERING_ROLES).ok?h:'');   /* Manager, Business_Admin, Super_User only: anyone else gets nothing rendered, not a hidden form */
   h+=pkgCard();
   h+='</div>';
@@ -4335,6 +4416,20 @@ document.addEventListener('click',function(e){
     toast(pf?'Pass or fail is on. A swimmer can now be marked as not passed.'
             :'Pass or fail is off. Nobody can be marked as not passing'+(cleared?' - '+cleared+' existing mark'+(cleared===1?' was':'s were')+' cleared.':''));
   }
+  else if(a==='courseaddopen'){if(!canRules())return;ui.courseAdd=true;paint()}
+  else if(a==='courseaddclose'){ui.courseAdd=false;paint()}
+  else if(a==='courseDone'){   /* B1: closing a course never touches its bookings */
+    if(!canRules())return;
+    var cdn=coursesOf().filter(function(x){return x.id===el.dataset.id})[0];if(!cdn)return;
+    cdn.status=cdn.status==='done'?'':'done';save();paint();
+    toast(cdn.status==='done'?'Course closed':'Course reopened');
+  }
+  else if(a==='courseDel'){
+    if(!canRules())return;
+    var cdl=(B().courses||[]).filter(function(x){return x.id===el.dataset.id})[0];if(!cdl)return;
+    B().courses=(B().courses||[]).filter(function(x){return x.id!==cdl.id});
+    save();paint();toast('Course removed. The bookings it counted are untouched.');
+  }
   else if(a==='bkclearhours'){if(!canRules())return;var sch=svcOf(el.dataset.id);if(!sch||!sch.bk)return;var cb={};Object.keys(sch.bk).forEach(function(k){cb[k]=sch.bk[k]});cb.early='';cb.late='';sch.bk=bkClean(cb);submitOffering(sch);toast('Daily hour limits cleared')}
   else if(a==='bktoggle'){if(!canRules())return;ui.bkOpen=ui.bkOpen||{};ui.bkOpen[el.dataset.id]=!ui.bkOpen[el.dataset.id]}
   else if(a==='moreadd'){
@@ -4375,7 +4470,7 @@ document.addEventListener('change',function(e){
   var el=e.target.closest('[data-c]');if(!el)return;
   var c=el.dataset.c;
   var dateField=el.type==='date'&&(c==='certexp'||c==='nsF');
-  var noPaint=dateField||(c==='nsF'&&el.dataset.field!=='cls'&&el.dataset.field!=='locs');   /* typing in the Employee form never redraws it; only ticking a classification or site does (it changes which certifications are asked for) */
+  var noPaint=dateField||c==='stageSet'||(c==='nsF'&&el.dataset.field!=='cls'&&el.dataset.field!=='locs');   /* typing in the Employee form never redraws it; only ticking a classification or site does (it changes which certifications are asked for) */
   if(dateField&&el.value&&(!/^\d{4}-\d\d-\d\d$/.test(el.value)||+el.value.slice(0,4)<1900||+el.value.slice(0,4)>2100))return;   /* a half-typed year (0002, 000002...) is not a date yet: leave the field alone and wait for the full year */
   if(c==='obv'&&!DB.session){setVertical(el.value);paint();return}   /* industry wording on the registration lane */
   if(calChange(c,el)){save();paint();return}
@@ -4436,6 +4531,10 @@ document.addEventListener('change',function(e){
       else{mr.min=pm.min;submitOffering(sx)}}
   }
   else if(c==='rule'){setBookingRule(el.dataset.field,Math.round(+el.value)||0);}   /* one authority: setBookingRule owns the limits. This branch used to carry its OWN table - advanceDays 1-180, noticeHours 0-72, startStep 10-60 - which disagreed with both the panel's input caps and setBookingRule itself, so a value the command bar was allowed to set got silently clamped back the moment anyone touched the box. */
+  else if(c==='stageSet'){   /* B1: the stage lives on the swimmer. noPaint, so typing in it never redraws the card. */
+    if(!canRules())return;
+    setStage(el.dataset.k,String(el.value||'').trim().slice(0,40));
+  }
   else if(c==='svcLen'||c==='newLen'){
     var raw=+el.value,m=Math.max(10,Math.min(240,Math.round(raw/10)*10||10)),svx=c==='svcLen'?svcOf(el.dataset.id):null,sid=c==='svcLen'?el.dataset.id:'v2';
     if(String(el.value).trim()===''||raw<=0){toast('Enter a length of 10 minutes or more'+(svx?'. The length was not changed':''));if(svx)return;m=30}
@@ -4554,6 +4653,21 @@ document.addEventListener('submit',function(e){
     if(ssv.skills.some(function(x){return x.name.toLowerCase()===skn.toLowerCase()})){toast('That skill is already listed');return}
     ssv.skills.push({id:'sk'+ssv.id+'-'+uid(''),name:skn.slice(0,80)});
     ui.skillAdd&&(ui.skillAdd[ssv.id]=false);save();paint();toast('Skill added');
+  }
+  else if(f==='addCourse'&&canRules()){
+    /* read from the DOM like addSkill and addPkg: the form holds no model, so nothing typed can
+       be lost to a repaint while it is open */
+    var cwho=v('cw'),csk=v('cs'),cbought=Math.max(1,Math.min(200,Math.round(+v('cb'))||12));
+    var cstart=String(v('cd')||''),cweeks=Math.max(1,Math.min(52,Math.round(+v('ck'))||1));
+    if(!cwho||!csk)return;
+    if(!isDateStr(cstart)){toast('Pick the week the course starts');return}
+    var csw=allSwimmers().filter(function(x){return x.who===cwho})[0];
+    var cstg=String(v('cg')||'').trim().slice(0,40);
+    coursesOf().push({id:'co-'+uid(''),who:cwho,name:csw?csw.name:cwho,svc:csk,bought:cbought,
+      sid:v('cip')||'',start:cstart,weeks:cweeks,status:'',created:TODAY});
+    if(cstg)setStage(cwho,cstg);   /* the stage belongs to the swimmer, so it is written there */
+    ui.courseAdd=false;save();paint();
+    toast('Course added'+(cstg?' · stage set to '+cstg:''));
   }
   else if(f==='addPkg'&&me().role!=='customer'){
     var psv=e.target.dataset.svc||'',pk0=psv||'any',psvc=svcOf(psv);
