@@ -1632,8 +1632,8 @@ function srvShift(date,loc,svc,sl){
   if(!s||!cls||!(sl.starts||[]).length)return null;
   var id='srv:'+date+':'+sl.staff_id+':'+sl.starts[0],x=shiftOf(id);
   var ts=sl.starts.slice();
-  if(!x){x={id:id,date:date,loc:loc,sid:s.id,cls:cls.id,sm:ts[0],em:ts[ts.length-1]+svc.min,online:true,srv:true};B().shifts.push(x)}
-  else{x.sm=ts[0];x.em=ts[ts.length-1]+svc.min}
+  if(!x){x={id:id,date:date,loc:loc,sid:s.id,cls:cls.id,sm:ts[0],em:ts[ts.length-1]+svc.min,online:true,srv:true,slotId:sl.slot_id,handle:sl.provider_handle};B().shifts.push(x)}
+  else{x.sm=ts[0];x.em=ts[ts.length-1]+svc.min;x.slotId=sl.slot_id;x.handle=sl.provider_handle}
   return x;
 }
 function srvRows(date,loc,svc){
@@ -1648,6 +1648,36 @@ function srvRows(date,loc,svc){
     out.push({x:x,s:s,ts:sl.starts.slice()});
   });
   return out;
+}
+/* §5 first promise: the server decides, against live state, at the very moment of booking. It commits
+   every time in the cart and resolves with '' when they all hold, or with the one reason to show.
+   Nothing is written into this browser until the server has said yes, so two people cannot both walk
+   away holding the same slot. The provider is named by the SLOT we were offered, never by an id this
+   page picked: the handle on the slot is only there to say which person we chose. */
+function serverCommitCart(rows,u,who){
+  var people={},pending=rows.map(function(r){
+    var p=u.people.filter(function(q){return q.id===r.it.c.pid})[0]||who||{name:'',age:''};
+    var key=String(p.name||'')+'|'+(p.age===''||p.age==null?'':p.age);
+    var get=people[key]?Promise.resolve(people[key])
+      :remoteCall('POST','/api/v1/consumers',{full_name:p.name,age:(p.age===''||p.age==null)?null:p.age}).then(function(cr){
+        var id=cr&&cr.status===201&&cr.body&&cr.body.id;
+        if(!id)throw new Error(cr&&cr.status===429?'Too many people added just now. Try again in a little while.':'We could not save who this booking is for');
+        people[key]=id;return id;
+      });
+    return get.then(function(cid){
+      return remoteCall('POST','/api/v1/availability/book',{slot_id:r.it.x.slotId,handle:r.it.x.handle,start:r.it.c.t,length:r.it.sv.min,consumer_id:cid,idempotency_key:String(ui.payStamp||'pay')+'-'+String(r.it.c.id)+'-'+r.it.c.t});
+    }).then(function(br){
+      if(br&&br.status===201)return '';
+      if(br&&br.status===409)return 'Sorry, '+fm(r.it.c.t)+' was just taken. Nothing was booked - pick another time.';
+      if(br&&br.status===404)return 'Sorry, that time is no longer available. Nothing was booked - pick another time.';
+      var m=br&&br.body&&br.body.error&&br.body.error.message;
+      return (m||'We could not book that time')+'. Nothing was booked';
+    });
+  });
+  return Promise.all(pending).then(function(why){
+    for(var i=0;i<why.length;i++)if(why[i])return why[i];
+    return '';
+  },function(e){return (e&&e.message)?e.message:'We could not reach the server. Nothing was booked'});
 }
 /* what a customer may book: online shifts that are valid, with enough free time for the service */
 function openStarts(date,loc,svc){
@@ -2194,6 +2224,20 @@ function adoptServerSession(slug,email,body,bad){
       biz=allBiz().filter(function(b){return b.slug===slug})[0];if(!biz){REMOTE=null;return bad}
       biz.remoteId=bid;
     }
+    /* The server knows this business's industry, and it also holds the business's OWN words for the
+       people and the things it sells. The page was falling back to the generic pack - which is what
+       made a swim school say "Book a booking" and "My consumers". The pack is applied from the
+       server's industry, then the server's own labels win over it: that is where "Instructor",
+       "Swimmer" and "Lesson" come from. Always applied, so a change made in the business's settings
+       reaches this browser at the next sign-in rather than never. */
+    var sb=m.body.business||{},srvInd=cleanVertical(sb.industry||'');
+    if(srvInd&&biz.vertical!==srvInd){biz.vertical=srvInd;biz.labels=packLabels(srvInd)}
+    var over={};
+    if(sb.staff_label)over.staff=sb.staff_label;
+    if(sb.staff_label_plural)over.staffPlural=sb.staff_label_plural;
+    if(sb.client_label)over.client=sb.client_label;
+    if(sb.session_label)over.session=sb.session_label;
+    if(Object.keys(over).length)biz.labels=Object.assign({},biz.labels||{},over);
     var lu=biz.users.filter(function(x){return x.email===email})[0];
     if(!lu){lu={id:uid('u'),email:email,name:u.full_name||email,role:SERVER_ROLE[u.role]};biz.users.push(lu)}
     lu.pw=secret;lu.role=SERVER_ROLE[u.role];                       /* the real password never reaches local storage */
@@ -4616,6 +4660,25 @@ function payCart(){
   if(noCredit.length){toast(noCredit[0].it.sv.name+' is sold in packages only, and you have no credit for it');return}
   var needDefault=plan.rows.some(function(r){return !r.it.c.pid||!u.people.some(function(q){return q.id===r.it.c.pid})}),who=null;
   if(needDefault){who=pickPerson(u);if(!who){toast('Choose who the '+LB().session.toLowerCase()+' is for, or add a name');return}}
+  /* §5 first promise - the server has the last word, decided against live state at the moment of
+     booking. Nothing is written into this browser until every time in the cart has been committed
+     there, so two people cannot both walk away believing they hold the same slot. The second pass
+     (ui.cartOk) runs the local write below, because the server has already said yes. With no live
+     server the offline single-file copy keeps its local behaviour. */
+  if(serverLive()&&!ui.cartOk&&plan.rows.some(function(r){return r.it.x&&r.it.x.slotId})){
+    if(ui.paying)return;ui.paying=true;ui.payStamp='pay-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+    serverCommitCart(plan.rows,u,who).then(function(bad){
+      ui.paying=false;
+      if(bad){
+        toast(bad);
+        ui.cart=ui.cart.filter(function(c){var x=shiftOf(c.id);return !x||!x.slotId});   // drop what is gone, keep the rest
+        save();paint();return;
+      }
+      ui.cartOk=true;
+      try{payCart()}finally{ui.cartOk=false}
+    });
+    return;
+  }
   var base='SW-'+uid('').slice(0,5).toUpperCase(),n=0,credits=0;
   plan.rows.forEach(function(r,i){
     var it=r.it,p=u.people.filter(function(q){return q.id===it.c.pid})[0]||who,k;
