@@ -779,6 +779,82 @@ label.alopt{grid-template-columns:auto 1fr;align-items:start;gap:8px}label.alopt
 }
 @media (prefers-reduced-motion:reduce){.drawerscrim .drawer{animation:none}}
 
+/* ---------- THE CUSTOMER ACTION CARD ----------------------------------------------------------
+   The last thing a customer sees before they commit, rebuilt as one flat column so it reads the way
+   it is used: who is teaching, which ten minutes, then one wide button under the thumb. It rises
+   from the base of the screen, carries a handle at the top, and never takes more than half of it. */
+.actioncard{max-height:50vh;padding-top:8px;align-content:start;gap:12px;
+  display:grid;grid-template-columns:minmax(0,1fr);
+  animation:cardup .3s cubic-bezier(.2,.9,.25,1)}
+@keyframes cardup{from{transform:translateY(100%)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){.actioncard{animation:none}}
+.grab{width:44px;height:5px;border-radius:999px;background:var(--line2);margin:2px auto 4px}
+.acsum{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.acrow{display:flex;align-items:center;gap:12px;min-width:0}
+.acrow>*{min-width:0}
+.actioncard .btn.pri{width:100%;min-height:44px}
+@media (max-width:900px){
+  .actioncard{max-height:50vh}
+  .actioncard .btn.pri{min-height:48px}      /* the standing touch standard, kept on a phone */
+}
+
+/* ---------- THE CUSTOMER CALENDAR: a date strip, instructor capsules, one vertical timeline -------
+   Three pieces, replacing a month grid and per-instructor columns:
+     .datestrip  a clean horizontal line of date capsules. Up to four at once, each lighting up as it
+                 is chosen, scrolling inside itself so it can never drag the page sideways.
+     .instrrow   rounded profile capsules, one per instructor, filtering the timeline in place.
+     .tgroup/.tstack  open blocks stacked vertically and grouped by the chosen date, every cell a
+                 comfortable 44px tall (48 on touch) with padding rather than a grid of tiny chips. */
+.datestrip{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.datestrip::-webkit-scrollbar{display:none}
+.daterow{flex:0 0 auto;min-width:62px;min-height:68px;border:1px solid var(--line);background:var(--surface);
+  border-radius:15px;padding:8px 12px;display:grid;justify-items:center;align-content:center;gap:1px;
+  font:inherit;color:inherit;cursor:pointer}
+.daterow b{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.daterow span{font-size:19px;font-weight:600;letter-spacing:-.02em;line-height:1.05}
+.daterow i{font-size:10px;font-style:normal;color:var(--ok);white-space:nowrap}
+.daterow.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.daterow.on b{color:color-mix(in srgb,var(--bg) 72%,transparent)}
+.daterow.on i{color:color-mix(in srgb,var(--bg) 85%,transparent)}
+.daterow:disabled{opacity:.38}
+.instrrow{display:flex;gap:8px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none}
+.instrrow::-webkit-scrollbar{display:none}
+.icap{flex:0 0 auto;min-height:44px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);
+  background:var(--surface);border-radius:999px;padding:4px 15px;font:inherit;font-size:13.5px;font-weight:600;
+  color:inherit;cursor:pointer;white-space:nowrap}
+.icap:not(:has(svg)){padding:4px 15px}
+.icap.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--surface))}
+.tgroup{border:1px solid var(--line);background:var(--surface);border-radius:16px;padding:14px;display:grid;gap:12px}
+.trow{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.trow:first-of-type{border-top:0;padding-top:0}
+.tstack{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.tstack .tm{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border:1px solid var(--line);background:var(--surface2);border-radius:12px;padding:10px 14px;
+  font:inherit;color:inherit;text-align:left;cursor:pointer}
+.tstack .tm b{font-size:15px;font-weight:600}
+.tstack .tm span{font-size:12px;color:var(--muted);white-space:nowrap}
+.tstack .tm[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+@media (max-width:900px){.tstack .tm{min-height:48px}}
+
+/* ---------- THE PACKAGE TRAY ---------------------------------------------------------------------
+   What a customer with no credits meets first: the tiers side by side, before the calendar rather
+   than after it. A horizontal tray in the same idiom as the date strip - it scrolls inside itself,
+   never the page - and each card carries the price per lesson and a Select button at the touch
+   standard, which lights the card and hands the customer down to the date picker. */
+.pkgtraywrap{display:grid;gap:8px}
+.pkgtray{display:flex;gap:10px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.pkgtray::-webkit-scrollbar{display:none}
+.pkgcard{flex:0 0 auto;width:190px;display:grid;gap:6px;align-content:start;border:1px solid var(--line);
+  background:var(--surface);border-radius:15px;padding:14px}
+.pkgcard b{font-size:15px;line-height:1.25}
+.pkgn{font-size:12px;color:var(--muted);line-height:1.35}
+.pkgprice{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.pkgbtn{width:100%;min-height:44px;align-self:end}
+.pkgcard.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);
+  background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+@media (max-width:900px){.pkgbtn{min-height:48px}}
+
 /* ---- live-data loading skeleton ---- */
 .syncbox{max-width:520px;margin:12vh auto 0;display:grid;gap:14px}
 .skel{display:grid;gap:10px}.skel i{display:block;height:44px;border-radius:10px;background:linear-gradient(90deg,var(--line),color-mix(in srgb,var(--line) 40%,var(--surface)),var(--line));background-size:200% 100%;animation:skelmove 1.2s ease-in-out infinite}
@@ -4454,6 +4530,16 @@ function pgBook(){
   if(soldSingle(sv)&&(sv.more||[]).length){sv=svcVar(sv,(ui.clen||{})[sv.id]);h+=lenChips(svcOf(sv.id),sv)}
   var cr=creditsFor(me(),sv.id);if(cr)h+='<div class="card flat" style="background:var(--ok-soft)"><b>'+CHECK+' You have '+cr+' package credit'+(cr===1?'':'s')+' for this.</b> <span class="sm muted">They are used automatically at checkout.</span></div>';
   var offers=(B().packages||[]).filter(function(p){return p.active&&(!p.svc||p.svc===sv.id)});
+  /* THE PACKAGE TRAY. A first-time customer holding no credits meets the tiers before the calendar
+     rather than after it: a horizontal tray of cards, each with the price per lesson and a Select
+     button at the touch standard. Selecting one lights it and hands the customer down to the date
+     picker - the guided motion lives in the pkgsel handler, which lets the repaint land first. */
+  if(offers.length&&creditsFor(me(),sv.id)===0){
+    h+='<div class="pkgtraywrap"><div class="eyebrow">Start with a package</div><div class="pkgtray" role="group" aria-label="Package tiers">'+offers.map(function(p){
+      var on=(String(ui.pkg)===String(p.id)),each=p.qty>1?' · '+money(Math.round(p.cents/p.qty))+' each':'';
+      return '<div class="pkgcard'+(on?' on':'')+'"><b>'+esc(p.name)+'</b><span class="pkgn">'+p.qty+' '+(p.qty===1?'lesson':esc(L.session.toLowerCase())+'s')+each+'</span><span class="pkgprice mono">'+money(p.cents)+'</span><button class="btn pri pkgbtn" data-a="pkgsel" data-v="'+p.id+'" aria-pressed="'+on+'">'+(on?'Selected':'Select')+'</button></div>';
+    }).join('')+'</div></div>';
+  }
   if(offers.length)h+='<div class="card flat row sp" style="gap:10px"><span class="sm"><b>Save with a package:</b> '+offers.map(function(p){return p.qty+' for '+money(p.cents)+(commitText(p)?' ('+commitText(p).replace('Register for ','')+' required)':'')}).join(' · ')+'</span><button class="btn sm" data-a="nav" data-v="packages">See packages</button></div>';
   if(!ui.cdate){ui.cdate=nextOpenDate(sv,T0)||TODAY;var dd0=pd(ui.cdate);ui.cmonth=(dd0.getFullYear()-T0.getFullYear())*12+dd0.getMonth()-T0.getMonth()}
   var off=Math.max(0,Math.min(maxMonthOff(),ui.cmonth)),first=new Date(T0.getFullYear(),T0.getMonth()+off,1),days=new Date(first.getFullYear(),first.getMonth()+1,0).getDate(),lead=(first.getDay()+6)%7;
@@ -4466,14 +4552,49 @@ function pgBook(){
     cal+='<button class="calday lvl'+lvl+(s===TODAY?' today':'')+'" '+(n?'':'disabled')+' aria-pressed="'+(s===ui.cdate)+'" data-a="cday" data-d="'+s+'" aria-label="'+DAYL[dIdx(s)]+' '+fdate(s)+': '+(n?n+' times open':inWin?(H?'fully booked':'closed'):'not available')+'"><b>'+d+'</b><span class="cn">'+(n?n+' open':inWin?(H?'Full':'Closed'):'')+'</span></button>';
   }
   cal+='</div></div><div class="callegend"><span><i class="lvl3"></i>Lots of times</span><span><i class="lvl1"></i>A few left</span><span><i class="lvl0"></i>None</span></div>';
-  var dstr=ui.cdate,cal2=calendarFor(sv.id,dstr,ui.loc,sv.min)||{rows:[],every:gridOf(sv).every},list=cal2.rows,H2=hoursFor(dstr,ui.loc),nx=nextOpenDate(sv,addD(pd(dstr),1));
-  h+='<div><div class="eyebrow" style="margin-bottom:8px">2 · Pick a day and time</div><div style="display:grid;gap:12px">'+locChips()+'<div class="bookgrid"><div class="card calcard">'+cal+'</div><div style="min-width:0;display:grid;gap:12px;align-content:start"><div class="row sp"><h3 style="font-size:18px">'+DAYL[dIdx(dstr)]+', '+fdate(dstr)+'</h3><span class="muted sm">'+(H2?'Open '+fspan(H2.o,H2.c):'Closed')+'</span></div>';
+  var dstr=ui.cdate,cal2=calendarFor(sv.id,dstr,ui.loc,sv.min)||{rows:[],every:gridOf(sv).every},H2=hoursFor(dstr,ui.loc),nx=nextOpenDate(sv,addD(pd(dstr),1));
+  /* MULTI-DATE. Up to four days can be held at once, and the timeline below is grouped by them in the
+     order they were chosen - so a family sees a whole stretch of ten-minute blocks in one continuous
+     column instead of flipping a month grid back and forth. */
+  var selDates=(ui.cdates&&ui.cdates.length?ui.cdates.filter(function(d){return d>=TODAY&&d<=lastOk}):[]);
+  if(!selDates.length)selDates=[ui.cdate];
+  var groups=selDates.map(function(dd){
+    var g=calendarFor(sv.id,dd,ui.loc,sv.min)||{rows:[],every:gridOf(sv).every};
+    var rr=(g.rows||[]).filter(function(r){return !ui.instr||String(r.x.sid)===String(ui.instr)});
+    return {d:dd,rows:rr,every:g.every,n:rr.reduce(function(a,r){return a+(r.ts||[]).length},0)};
+  });
+  var list=groups.reduce(function(a,g){return a.concat(g.rows)},[]);
+  /* every instructor on offer across the chosen days, once each, for the capsule row */
+  var instrSeen={},instrs=[];
+  groups.forEach(function(g){g.rows.forEach(function(r){var k=String(r.x.sid);if(!instrSeen[k]){instrSeen[k]=1;instrs.push(r.s)}})});
+  h+='<div id="datepicker"><div class="eyebrow" style="margin-bottom:8px">2 · Pick your days and times</div><div style="display:grid;gap:12px">'+locChips();
+  /* THE DATE STRIP. A clean horizontal line of capsules where the month grid used to be: choose up
+     to four days, each lighting up as it is chosen. It scrolls inside itself and never drags the
+     page sideways. */
+  var strip='';
+  for(var sd=TODAY;sd<=lastOk;sd=ds(addD(pd(sd),1))){
+    var on=selDates.indexOf(sd)>-1,nn=countStarts(sd,ui.loc,sv);
+    strip+='<button class="daterow'+(on?' on':'')+'" '+(nn?'':'disabled')+' aria-pressed="'+on+'" data-a="ctog" data-d="'+sd+'" aria-label="'+DAYL[dIdx(sd)]+' '+fdate(sd)+': '+(nn?nn+' times open':'nothing open')+'"><b>'+DAYS[dIdx(sd)]+'</b><span>'+pd(sd).getDate()+'</span><i>'+(nn?nn+' open':'—')+'</i></button>';
+  }
+  h+='<div class="datestrip" role="group" aria-label="Days to book">'+strip+'</div>';
+  /* THE INSTRUCTOR CAPSULES. One rounded chip per instructor on offer, plus Everyone to clear the
+     filter. Tapping one re-renders in place - no reload, no round trip. */
+  h+='<div class="instrrow" role="group" aria-label="Instructors">'+(instrs.length?'<button class="icap'+(!ui.instr?' on':'')+'" aria-pressed="'+(!ui.instr)+'" data-a="instr" data-v="">Everyone</button>':'')+instrs.map(function(st){return '<button class="icap'+(String(ui.instr)===String(st.id)?' on':'')+'" aria-pressed="'+(String(ui.instr)===String(st.id))+'" data-a="instr" data-v="'+st.id+'">'+avatar(st,28)+'<span>'+esc(st.name)+'</span></button>'}).join('')+'</div>';
+  h+='<div style="display:grid;gap:12px"><div class="row sp"><h3 style="font-size:18px">'+(groups.length===1?DAYL[dIdx(groups[0].d)]+', '+fdate(groups[0].d):groups.length+' days chosen')+'</h3><span class="muted sm">'+(H2?'Open '+fspan(H2.o,H2.c):'Closed')+'</span></div>';
   if(!list.length){
     h+='<div class="card flat muted" style="display:grid;gap:10px"><span>'+(H2?'No openings for '+esc(sv.name.toLowerCase())+' on this day.':'Closed this day.')+'</span>'+(nx?'<div><button class="btn" data-a="cnext" data-d="'+nx+'">Go to next opening · '+DAYS[dIdx(nx)]+' '+fdate(nx)+'</button></div>':'')+'</div>';
   }else{
-    list.forEach(function(o){
-      h+='<div class="card" style="display:grid;gap:12px"><div class="row" style="flex-wrap:nowrap;gap:12px">'+avatar(o.s,40)+'<div style="min-width:0"><b>'+esc(o.s.name)+'</b><div class="muted sm">'+esc(o.s.title)+' · '+esc(locOf(ui.loc).name)+'</div></div></div><div class="times" data-every="'+cal2.every+'" aria-label="Times every '+cal2.every+' minutes">'+
-        o.ts.map(function(t){return '<button class="tm" aria-pressed="'+cartHas(o.x.id,t)+'" data-a="cpick" data-id="'+o.x.id+'" data-t="'+t+'">'+fm(t)+'</button>'}).join('')+'</div></div>';
+    groups.forEach(function(g){
+      h+='<div class="tgroup"><div class="row sp" style="align-items:baseline"><b>'+DAYL[dIdx(g.d)]+', '+fdate(g.d)+'</b><span class="muted sm">'+g.n+' open</span></div>';
+      if(!g.rows.length||!g.n){h+='<p class="sm muted" style="margin:0">Nothing open '+(ui.instr?'with that instructor ':'')+'on this day.</p>'}
+      else{
+        g.rows.forEach(function(o){
+          h+='<div class="trow">'+avatar(o.s,32)+'<div style="min-width:0"><b>'+esc(o.s.name)+'</b><div class="muted sm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.s.title||'')+' · '+esc(locOf(ui.loc).name)+'</div></div><div class="tstack">'+
+            o.ts.map(function(t){return '<button class="tm" aria-pressed="'+cartHas(o.x.id,t)+'" data-a="cpick" data-id="'+o.x.id+'" data-t="'+t+'"><b>'+fm(t)+'</b><span>'+sv.min+' min</span></button>'}).join('')+
+          '</div></div>';
+        });
+      }
+      h+='</div>';
     });
   }
   return h+'</div></div></div></div>'+cartBar();
@@ -4782,8 +4903,17 @@ function checkout(){
       (pp.length>1?'<label class="sm" style="display:flex;gap:8px;align-items:center;color:var(--muted)">For<select data-c="itemwho" data-i="'+i+'" aria-label="Who is this for">'+'<option value="">Person chosen below</option>'+pp.map(function(q){return '<option value="'+q.id+'"'+(it.c.pid===q.id?' selected':'')+'>'+esc(personText(q))+'</option>'}).join('')+'</select></label>':'')+'</div>';
   }).join('');
   var haveCred=(u.packs||[]).some(packLive);
-  return '<div class="scrim" data-a="close"><div class="sheet" role="dialog" aria-modal="true" aria-label="Confirm and pay">'+
+  return '<div class="scrim" data-a="close"><div class="sheet actioncard" role="dialog" aria-modal="true" aria-label="Confirm and pay">'+
+  /* the handle the card is dragged by, and the flat single column everything else sits in */
+  '<div class="grab" aria-hidden="true"></div>'+
   '<div class="row sp"><h3 style="font-size:20px">Confirm '+plan.rows.length+' '+esc(L.session.toLowerCase())+(plan.rows.length===1?'':'s')+'</h3><button class="btn sm" data-a="close">Close</button></div>'+
+  '<div class="acsum">'+plan.rows.map(function(r){
+    var st=staffOf(r.it.x.sid),d=pd(r.it.x.date);
+    return '<div class="acrow">'+avatar(st,44)+'<div style="min-width:0"><b>'+esc(st.name)+'</b>'+
+      '<div class="sm muted">'+(r.it.c?fm(r.it.c.t):'')+' · '+d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · '+r.it.sv.min+' min</div>'+
+      (st.handle?'<div class="sm muted mono" style="overflow-wrap:anywhere">Handle '+esc(st.handle)+'</div>':'')+
+    '</div></div>';
+  }).join('')+'</div>'+
   '<div style="display:grid;gap:8px">'+rows+'</div>'+
   (haveCred?'<label class="row" style="gap:8px;font-weight:500"><input type="checkbox" data-c="usecred" '+(ui.useCredits!==false?'checked':'')+'> Use my package credits where they apply</label>':'')+
   /* B5 (12.4): the customer is TOLD the rule even though it does not stop them - a wait is
@@ -5010,12 +5140,36 @@ document.addEventListener('click',function(e){
   }
   else if(a==='blkopen'){ui.blkOpen=ui.blkOpen||{};ui.blkOpen[el.dataset.id]=!ui.blkOpen[el.dataset.id]}
   else if(a==='cservice'){ui.cs=el.dataset.v}
-  else if(a==='cday'||a==='cnext'){ui.cdate=el.dataset.d;var cd=pd(ui.cdate);ui.cmonth=(cd.getFullYear()-T0.getFullYear())*12+cd.getMonth()-T0.getMonth()}
+  /* The date capsules: up to four days held at once, and the strip lights each one as it goes on.
+     Deliberately plain - no new names that could collide with the chain's own, and any failure says
+     so out loud rather than leaving the strip looking dead. */
+  else if(a==='ctog'){try{
+    var cdv=String(el.dataset.d);
+    var clist=(ui.cdates||[]).slice();
+    if(clist.indexOf(cdv)>-1)clist=clist.filter(function(x){return x!==cdv});
+    else if(clist.length>=4)toast('Four days at a time is as many as you can pick');
+    else clist=clist.concat([cdv]).sort();
+    ui.cdates=clist;
+    ui.cdate=clist.length?clist[0]:ui.cdate;
+    ui.cmonth=(pd(ui.cdate).getFullYear()-T0.getFullYear())*12+pd(ui.cdate).getMonth()-T0.getMonth();
+  }catch(cerr){toast('Date picker: '+cerr.message)}}
+  else if(a==='instr'){ui.instr=el.dataset.v||null}
+  else if(a==='cday'||a==='cnext'){ui.cdates=[];ui.cdate=el.dataset.d;var cd=pd(ui.cdate);ui.cmonth=(cd.getFullYear()-T0.getFullYear())*12+cd.getMonth()-T0.getMonth()}
   else if(a==='cmonth'){ui.cmonth=Math.max(0,Math.min(maxMonthOff(),ui.cmonth+ +el.dataset.v))}
-  else if(a==='cpick'){if(me().role==='customer')cartToggle(el.dataset.id,+el.dataset.t)}
+  else if(a==='cpick'){if(me().role==='customer'){cartToggle(el.dataset.id,+el.dataset.t);if((ui.cart||[]).length){ui.review=true;ui.client='';ui.cage='';ui.pid=null}}}
   else if(a==='cartopen'){if((ui.cart||[]).length){ui.review=true;ui.client='';ui.cage='';ui.pid=null}}
   else if(a==='cartclear'){ui.cart=[]}
   else if(a==='cartrm'){ui.cart=(ui.cart||[]).filter(function(c){return !(c.id===el.dataset.id&&c.t===+el.dataset.t)});if(!ui.cart.length)ui.review=false}
+  /* GUIDED ONBOARDING. Selecting a tier lights it, then hands the customer down to the date picker.
+     The scroll is deferred by a frame on purpose: the state change triggers a repaint, and scrolling
+     before that repaint lands would anchor to a box about to be replaced. Waiting for the frame means
+     the picker - and the 9-12 and 4-7 blocks inside it - is the element actually on screen when the
+     motion starts, so it lands flush at the top edge. */
+  else if(a==='pkgsel'){if(me().role==='customer'){ui.pkg=el.dataset.v;
+    var pkAnchor=function(){var y=document.getElementById('datepicker');if(!y)return;
+      var top=y.getBoundingClientRect().top+(window.pageYOffset||0);
+      try{window.scrollTo({top:top,behavior:'smooth'})}catch(e){window.scrollTo(0,top)}};
+    if(window.requestAnimationFrame)requestAnimationFrame(function(){requestAnimationFrame(pkAnchor)});else setTimeout(pkAnchor,0)}}
   else if(a==='pkbuy'){if(pkgOf(el.dataset.id)&&me().role==='customer')ui.buy=el.dataset.id}
   else if(a==='pkpay'){var bp=ui.buy&&buyPack(ui.buy);if(bp){ui.buy=null;toast(bp.name+' bought: '+bp.total+' credits (payment simulated). Use them when you book')}}
   else if(a==='pkaddopen'){var kk=el.dataset.svc||'any';ui.pkAdd=ui.pkAdd||{};ui.pkAdd[kk]=!ui.pkAdd[kk];if(!ui.pkAdd[kk]&&ui.pkRule)delete ui.pkRule[kk]}
