@@ -1789,13 +1789,24 @@ function srvRows(date,loc,svc){
   });
   return out;
 }
-/* §5 first promise: the server decides, against live state, at the very moment of booking. It commits
-   every time in the cart and resolves with '' when they all hold, or with the one reason to show.
-   Nothing is written into this browser until the server has said yes, so two people cannot both walk
-   away holding the same slot. The provider is named by the SLOT we were offered, never by an id this
-   page picked: the handle on the slot is only there to say which person we chose. */
+/* §5 first promise: the server decides, against live state, at the very moment of booking. Nothing is
+   written into this browser until the server has answered. The provider is named by the SLOT we were
+   offered, never by an id this page picked: the handle on the slot is only there to say which person
+   we chose.
+
+   NOT ATOMIC, BY DECISION. A family cart is several children, and it is far better that the slot which
+   is free gets committed than that the whole cart fails because a sibling lost a race. One request
+   carries every slot; the server commits each on its own and answers per slot. Staggered times are
+   accepted here - if a back-to-back block has gone, ten or twenty minutes apart is fine. Anything that
+   needs several slots to move TOGETHER belongs in the Pair Finder layer at the front, never in the
+   rules engine.
+
+   Resolves with an outcome, never with a bare reason:
+     { ok, booked: [...], failed: [{ row, label, message, code }], message? } */
+function allFailed(list,msg){return list.map(function(x){return {row:x.row,label:x.label,code:'UNREACHABLE',message:msg}})}
 function serverCommitCart(rows,u,who){
-  var people={},pending=rows.map(function(r){
+  var people={};
+  var specs=rows.map(function(r){
     var p=u.people.filter(function(q){return q.id===r.it.c.pid})[0]||who||{name:'',age:''};
     var key=String(p.name||'')+'|'+(p.age===''||p.age==null?'':p.age);
     var get=people[key]?Promise.resolve(people[key])
@@ -1805,19 +1816,29 @@ function serverCommitCart(rows,u,who){
         people[key]=id;return id;
       });
     return get.then(function(cid){
-      return remoteCall('POST','/api/v1/availability/book',{slot_id:r.it.x.slotId,handle:r.it.x.handle,start:r.it.c.t,length:r.it.sv.min,consumer_id:cid,idempotency_key:String(ui.payStamp||'pay')+'-'+String(r.it.c.id)+'-'+r.it.c.t});
-    }).then(function(br){
-      if(br&&br.status===201)return '';
-      if(br&&br.status===409)return 'Sorry, '+fm(r.it.c.t)+' was just taken. Nothing was booked - pick another time.';
-      if(br&&br.status===404)return 'Sorry, that time is no longer available. Nothing was booked - pick another time.';
-      var m=br&&br.body&&br.body.error&&br.body.error.message;
-      return (m||'We could not book that time')+'. Nothing was booked';
+      return { row:r, label:String(p.name||''), spec:{
+        slot_id:r.it.x.slotId, handle:r.it.x.handle, start:r.it.c.t, length:r.it.sv.min,
+        consumer_id:cid, payment:'outside',
+        idempotency_key:String(ui.payStamp||'pay')+'-'+String(r.it.c.id)+'-'+r.it.c.t,
+      } };
     });
   });
-  return Promise.all(pending).then(function(why){
-    for(var i=0;i<why.length;i++)if(why[i])return why[i];
-    return '';
-  },function(e){return (e&&e.message)?e.message:'We could not reach the server. Nothing was booked'});
+  return Promise.all(specs).then(function(list){
+    return remoteCall('POST','/api/v1/availability/book-many',{slots:list.map(function(x){return x.spec})}).then(function(mr){
+      var body=mr&&mr.body, results=(body&&body.results)||[];
+      if(!results.length)return {ok:false,booked:[],failed:allFailed(list,'We could not reach the server'),message:'We could not reach the server. Nothing was booked.'};
+      var booked=[],failed=[];
+      list.forEach(function(x,i){
+        var res=results[i]||{};
+        if(res.ok)booked.push(x);
+        else failed.push({row:x.row,label:x.label,code:(res.error&&res.error.code)||'',message:(res.error&&res.error.message)||'That time could not be booked'});
+      });
+      return {ok:failed.length===0,booked:booked,failed:failed};
+    });
+  },function(e){
+    var m=(e&&e.message)?e.message:'We could not reach the server.';
+    return {ok:false,booked:[],failed:[],message:m+' Nothing was booked.'};
+  });
 }
 /* what a customer may book: online shifts that are valid, with enough free time for the service */
 function openStarts(date,loc,svc){
@@ -4852,12 +4873,24 @@ function payCart(){
      server the offline single-file copy keeps its local behaviour. */
   if(serverLive()&&!ui.cartOk&&plan.rows.some(function(r){return r.it.x&&r.it.x.slotId})){
     if(ui.paying)return;ui.paying=true;ui.payStamp='pay-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
-    serverCommitCart(plan.rows,u,who).then(function(bad){
+    serverCommitCart(plan.rows,u,who).then(function(out){
       ui.paying=false;
-      if(bad){
-        toast(bad);
-        ui.cart=ui.cart.filter(function(c){var x=shiftOf(c.id);return !x||!x.slotId});   // drop what is gone, keep the rest
+      /* NOTHING COMMITTED - the honest thing to say is that nothing was booked. */
+      if(!out.booked.length){
+        var f=out.failed[0];
+        toast(out.message||(((f&&f.message)||'We could not book those times')+(out.failed.length>1?' Nothing was booked - pick other times.':' Nothing was booked - pick another time.')));
+        ui.cart=ui.cart.filter(function(c){var x=shiftOf(c.id);return !x||!x.slotId});
         save();paint();return;
+      }
+      /* SOME COMMITTED, SOME DID NOT. This is the whole point of the non-atomic rule: keep what the
+         server actually took, drop only the rows that lost their race, and carry the specifics so the
+         customer is told WHICH child needs another time - never that the cart failed, which would be a
+         lie when a sibling is holding a real booking. */
+      var lost=out.failed.map(function(f){return f.row.it.c});
+      ui.cart=plan.rows.filter(function(r){return out.failed.indexOf(r)<0}).map(function(r){return r.it.c});
+      if(lost.length){
+        var bits=out.failed.map(function(f){return (f.label?f.label+' at ':'')+fm(f.row.it.c.t)});
+        ui.partial='Booked '+out.booked.length+', but '+lost.length+' could not be: '+bits.join(', ')+'. Pick '+(lost.length===1?'another time for them':', for each of them')+'.';
       }
       ui.cartOk=true;
       try{payCart()}finally{ui.cartOk=false}
@@ -4867,7 +4900,15 @@ function payCart(){
   var base='SW-'+uid('').slice(0,5).toUpperCase(),n=0,credits=0;
   plan.rows.forEach(function(r,i){
     var it=r.it,p=u.people.filter(function(q){return q.id===it.c.pid})[0]||who,k;
-    k={id:uid('b'),date:it.x.date,loc:it.x.loc,shift:it.x.id,sid:it.x.sid,t:it.c.t,len:it.sv.min,client:p.name,age:p.age,pid:p.id,cust:u.id,svc:it.sv.id,svcName:it.sv.name,paid:true,ref:base+(plan.rows.length>1?'-'+(i+1):'')};
+    /* THE LOCAL COPY MUST SAY WHAT THE SERVER SAYS. An online booking here is paid OUTSIDE - cash or
+       Venmo settled at the desk - so the server records it as an outstanding balance: paid false,
+       payment outside, nothing received yet. Writing paid:true locally made the interface claim "Paid"
+       until the next 14-day sync corrected it, and left the browser disagreeing with the ledger. The
+       three ledger keys travel with the row so the desk has something to match against when it marks
+       the money received. The badge on My bookings reads this directly and now says "Pay at facility". */
+    k={id:uid('b'),date:it.x.date,loc:it.x.loc,shift:it.x.id,sid:it.x.sid,t:it.c.t,len:it.sv.min,client:p.name,age:p.age,pid:p.id,cust:u.id,svc:it.sv.id,svcName:it.sv.name,
+       paid:false,method:'outside',markedReceivedAt:null,markedReceivedBy:null,outstanding:true,
+       ref:base+(plan.rows.length>1?'-'+(i+1):'')};
     if(r.pk){r.pk.left--;k.credit=r.pk.id;k.price=packValue(r.pk);credits++}else k.price=it.sv.cents;
     B().book.push(k);n++;
     /* B5: decide AT THE MOMENT OF BOOKING whether this one waits. A too-close pairing on a
@@ -4877,6 +4918,10 @@ function payCart(){
     else if(holdWhyOn('date')&&pd(k.date)>addD(pd(TODAY),holdDays()))holdBooking(k,'date');
   });
   ui.cart=[];ui.review=false;ui.client='';ui.cage='';ui.pid=null;ui.page='mine';setHash('mine');
+  /* A partial commit: the successes are real and already written above, so do not send the customer to
+     "My bookings" as though all was well. Put them back on the Book page with exactly what went and
+     what did not, so they can pick another window for the child who missed out. */
+  if(ui.partial){var pm=ui.partial;ui.partial=null;ui.page='book';setHash('book');save();paint();toast(pm);return}
   toast('Booked '+n+' '+LB().session.toLowerCase()+(n===1?'':'s')+(plan.due?' · '+money(plan.due)+' paid (simulated)':'')+(credits?' · '+credits+' package credit'+(credits===1?'':'s')+' used':'')+'. Confirmation '+base);
 }
 /* ----- customer: Book page selection bar, checkout, packages page ----- */
