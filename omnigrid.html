@@ -775,6 +775,23 @@ label.alopt{grid-template-columns:auto 1fr;align-items:start;gap:8px}label.alopt
         that the bar's own overflow had already stretched - the two chase each other and the document
         ends up 618px wide on a 360px screen. Pinning the document at the screen breaks the loop. */
   html,body{max-width:100%;overflow-x:hidden}
+  /* MOBILE VIEWPORT LOCK. The shell is exactly the width of the screen and cannot scroll sideways; every
+     child sizes in percentages and anything that would have pushed it wider is clipped rather than
+     allowed to move the whole page. Vertical scrolling is untouched, and this is belt-and-braces beside
+     the document-level pin above, because a single fixed pixel width anywhere inside is enough to undo
+     it. */
+  /* The base of the main content container is padded clear of the dock (7rem, the specified buffer),
+     while keeping the clearance the mobile nav bar already needed. Belt and braces: the dock is sticky
+     and so holds its own space, but a long cart or an open accordion drawer scrolling underneath must
+     never end flush against the bar. */
+  .shell{overflow-x:hidden;width:100%;max-width:100%;padding-bottom:max(7rem,126px)}
+  /* PIECE 4 - FLUSH AT THE BOTTOM. This is what actually puts the dock on the screen's last pixel: the
+     card's own bottom padding was holding it short. (The matching negative margin on .dock is 0, not
+     -20px: on the last child of a scroll container that only added slack BELOW the bar.) The bar supplies
+     the safe-area inset itself, so a phone with a home indicator still clears it. */
+  .actioncard{padding-bottom:0}
+  .dock{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .shell *{max-width:100%}
   .side .nav .nl{white-space:normal;word-break:break-word;overflow-wrap:anywhere}
 }
 @media (prefers-reduced-motion:reduce){.drawerscrim .drawer{animation:none}}
@@ -881,6 +898,50 @@ label.alopt{grid-template-columns:auto 1fr;align-items:start;gap:8px}label.alopt
   border:1px solid var(--line);background:var(--surface2);border-radius:12px;padding:10px 14px}
 @media (prefers-reduced-motion:reduce){.paydraw{transition:none}}
 
+/* ---------- PIECE 3: THE PAYMENT ACCORDION DRAWER --------------------------------------------------
+   The drawer opens by animating a grid from 0fr to 1fr rather than by animating a height. That means the
+   row sizes itself to whatever the instructions actually say - nothing has to be measured, guessed at, or
+   kept in step with the text, and an edit to a business's own wording cannot leave a clipped drawer
+   behind. Exactly 0.28s, with the reduced-motion guard turning it into a plain cut rather than a fade.
+   Placed after the earlier rules so it supersedes any height-based version already in this file. */
+.paydraw{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease}
+.paydraw.open{grid-template-rows:1fr}
+.payinner{overflow:hidden;min-height:0}
+.paydraw .payinner{opacity:0;transition:opacity .28s ease}
+.paydraw.open .payinner{opacity:1}
+/* the card convenience fee, stated on the card's OWN row - where the choice is being made - and not only
+   in a summary block underneath it. */
+.payrow .paysub{display:block;margin-top:2px}
+.payrow .paysub.fee{color:#86efac;font-weight:600}
+.payfee{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:9px 2px;border-top:1px solid rgba(148,163,184,.16)}
+@media (prefers-reduced-motion:reduce){.paydraw,.paydraw .payinner{transition:none}}
+
+/* ---------- PIECE 4: THE STICKY BOTTOM ACTION TRIGGER ----------------------------------------------
+   The dock mirrors the top header shield verbatim - the same 80% slate-950 behind the same blur - so the
+   checkout is framed by matching bars rather than a bar and a floating button.
+   It is sticky rather than fixed on purpose: the checkout lives in a sheet that animates in, and a fixed
+   child of an animated ancestor is positioned against that ancestor instead of the screen. Sticky sits
+   properly at the bottom of the surface, which IS the bottom of the viewport, and it occupies its own
+   space in the flow - so nothing can be trapped behind it even before the buffer below is counted.
+   The bottom margin is ZERO, not negative. An earlier attempt used -20px to cancel the card's own bottom
+   padding, and it made things worse: on the last child of a scroll container a negative bottom margin
+   adds slack below the element rather than pulling it down. What actually flushes the bar is the mobile
+   rule that removes the card's padding - so the margin stays 0 and the two cannot disagree. */
+.dock{position:sticky;bottom:0;z-index:6;margin:14px -20px 0;
+  padding:12px max(16px,env(safe-area-inset-right,0px)) max(12px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  background:rgba(2,6,23,.8);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);
+  border-top:1px solid #0f172a}
+.dockbtn{width:100%;min-height:52px;padding:14px 16px;font-size:16px;font-weight:600}
+/* a hard refusal: grey, unclickable, and visibly not merely unlucky */
+.dock.off .dockbtn{background:#334155;border-color:#334155;color:#94a3b8;cursor:not-allowed;opacity:.85;
+  box-shadow:none}
+.dockalert{color:#fca5a5;font-size:13.5px;line-height:1.4;margin:0 0 10px}
+@media (prefers-reduced-transparency:reduce){
+  .dock{background:#020617;-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+
 /* ---------- PIECE 1: THE CHECKOUT HEADER (the spacing shield) --------------------------------------
    Sticky to the top of its surface, with an explicit boundary of max(1rem, safe-area inset top) so the
    title and the Back link are permanently clear of the device's own clock, battery indicators and
@@ -905,6 +966,42 @@ label.alopt{grid-template-columns:auto 1fr;align-items:start;gap:8px}label.alopt
 @media (max-width:900px){.ckback{padding-top:16px;padding-bottom:16px}}
 @media (prefers-reduced-transparency:reduce){
   .ckhead{background:#020617;-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+
+/* ---------- PIECE 2: THE SWIMMER CART LIST ---------------------------------------------------------
+   One rounded slate card per child. Everything inside sizes in percentages, so no row can push the page
+   sideways however long a name or an instructor's title is. The coordinates WRAP rather than truncate -
+   a half-read time is worse than two lines. Remove is deliberately oversized: at the card it clears that
+   child's times and only theirs, and on a row it clears one time, so a thumb never has to be precise. */
+.swimcart{display:grid;gap:12px;width:100%;max-width:100%}
+.scard{background:#0f172a;color:#e2e8f0;border:1px solid #1e293b;border-radius:16px;
+  padding:14px;display:grid;gap:10px;width:100%;max-width:100%}
+.scardhd{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;min-width:0}
+.scwho{display:inline-flex;align-items:center;gap:8px;min-width:0;font-size:15px}
+.scwho b{font-weight:700;overflow-wrap:anywhere}
+.scico{display:inline-grid;place-items:center;width:24px;height:24px;flex:none;border-radius:50%;
+  background:rgba(148,163,184,.18);color:#cbd5e1}
+.screm{min-height:44px;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:10px;
+  background:transparent;color:#94a3b8;font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  padding:8px 12px;margin:-8px -8px -8px 0}
+.screm:hover{color:#f8fafc;background:rgba(148,163,184,.12)}
+.srow{display:grid;gap:8px;border-top:1px solid rgba(148,163,184,.16);padding-top:10px;
+  width:100%;min-width:0}
+.srow:first-of-type{border-top:0;padding-top:0}
+.srowtx{color:#cbd5e1;line-height:1.45;overflow-wrap:anywhere}
+.srowft{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.srowx{width:44px;height:44px;flex:none;display:grid;place-items:center;cursor:pointer;
+  border:1px solid rgba(148,163,184,.25);border-radius:10px;background:transparent;color:#94a3b8;
+  font:inherit;font-size:14px}
+.srowx:hover{color:#f8fafc;border-color:#64748b}
+.sbadge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;
+  font-size:12px;font-weight:600;white-space:nowrap}
+.sbadge.ok{background:color-mix(in srgb,#22c55e 16%,#0f172a);color:#86efac;
+  border:1px solid color-mix(in srgb,#22c55e 35%,#0f172a)}
+.sbadge.due{background:rgba(148,163,184,.14);color:#cbd5e1;border:1px solid rgba(148,163,184,.28)}
+@media (min-width:520px){
+  .srow{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .srowtx{grid-column:1}.srowft{grid-column:2;justify-content:flex-end}
 }
 
 /* ---- live-data loading skeleton ---- */
@@ -5098,7 +5195,11 @@ function payBlock(plan){
     }
     h+='<button type="button" class="payrow'+(on?' on':'')+'" role="radio" aria-checked="'+on+'" data-a="paymethod" data-v="'+esc(m.id)+'">'
       +'<span class="paydot" aria-hidden="true"></span><span class="paytxt"><b>'+esc(m.label||m.id)+'</b>'
-      +'<span class="sm muted">'+(m.type==='live_immediate'?'Instant confirmation':(m.type==='short_term_hold'?('Held for '+m.holdWindowMinutes+' minutes'):'Settle at the desk'))+'</span></span></button>'
+      +'<span class="sm muted">'+(m.type==='live_immediate'?'Instant confirmation':(m.type==='short_term_hold'?('Held for '+m.holdWindowMinutes+' minutes'):'Settle at the desk'))+'</span>'
+      /* The markup belongs on the row that incurs it. cardFeeCents() already returns 0 unless the
+         business has actually chosen pass_through, so this line cannot appear on an absorbed fee. */
+      +(m.type==='live_immediate'&&fee?'<span class="sm paysub fee">+'+money(fee)+' card fee</span>':'')
+      +'</span></button>'
       +'<div class="paydraw'+(on?' open':'')+'"><div class="payinner">'
       +(m.instructions?'<div class="sm">'+esc(m.instructions)+'</div>':'')
       +(when?'<div class="sm"><b>'+esc(when)+'</b></div>':'')+'</div></div>';
@@ -5146,13 +5247,41 @@ function checkout(){
     '<span class="ckspace" aria-hidden="true"></span>'+
   '</header>'+
   '<div class="cksub sm muted">Confirm '+plan.rows.length+' '+esc(L.session.toLowerCase())+(plan.rows.length===1?'':'s')+'</div>'+
-  '<div class="acsum">'+plan.rows.map(function(r){
-    var st=staffOf(r.it.x.sid),d=pd(r.it.x.date);
-    return '<div class="acrow">'+avatar(st,44)+'<div style="min-width:0"><b>'+esc(st.name)+'</b>'+
-      '<div class="sm muted">'+(r.it.c?fm(r.it.c.t):'')+' · '+d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' · '+r.it.sv.min+' min</div>'+
-      (st.handle?'<div class="sm muted mono" style="overflow-wrap:anywhere">Handle '+esc(st.handle)+'</div>':'')+
-    '</div></div>';
-  }).join('')+'</div>'+
+  /* PIECE 2 - THE SWIMMER CART LIST. Grouped by the child the times are for, in the order they were
+     chosen, and stacked chronologically inside each so a staggered gap between siblings is obvious at a
+     glance (B4). Every row carries what the allocation scan decided about it: a claimed package credit,
+     or the balance that rolled over to a card or cash payment because a milestone lock kept another
+     swimmer's intro credits out of reach. Removing is per child from the card, and per time from the
+     row, so a thumb never has to be precise and a sibling is never disturbed by mistake. */
+  '<div class="swimcart">'+
+    (function(){
+      var by={},order=[];
+      plan.rows.forEach(function(r){
+        var pid=String((r.it.c&&r.it.c.pid)||'_');
+        if(!by[pid]){by[pid]=[];order.push(pid)}
+        by[pid].push(r);
+      });
+      var ICO='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>';
+      return order.map(function(pid){
+        var list=by[pid].slice().sort(function(a,b){return (pd(a.it.x.date)-pd(b.it.x.date))||((a.it.c.t||0)-(b.it.c.t||0))});
+        var who=(me().people||[]).filter(function(q){return String(q.id)===pid})[0];
+        var nm=who?who.name:(list[0].it.c&&list[0].it.c.client)||'Whoever comes';
+        var st=staffOf(list[0].it.x.sid);
+        return '<div class="scard"><div class="scardhd">'+
+          '<span class="scwho"><span class="scico" aria-hidden="true">'+ICO+'</span><b>'+esc(nm)+'</b></span>'+
+          '<button type="button" class="screm" data-a="cartrmwho" data-v="'+esc(pid)+'" aria-label="Remove all of '+esc(nm)+'\'s times">✕ Remove</button>'+
+        '</div>'+list.map(function(r){
+          var dd=pd(r.it.x.date),sv=r.it.sv;
+          var badge=r.pk
+            ?'<span class="sbadge ok">🎫 Package Credit Applied</span>'
+            :'<span class="sbadge due">💵 '+money(sv.cents)+' Balance Due</span>';
+          return '<div class="srow"><div class="srowtx sm">'+DAYS[dIdx(r.it.x.date)]+', '+MON[dd.getMonth()]+' '+dd.getDate()+
+              ' • '+fm(r.it.c.t)+' with '+esc(st?st.name:'your instructor')+' ('+sv.min+'-Min '+esc(sv.name)+')</div>'+
+            '<div class="srowft">'+badge+'<button type="button" class="srowx" data-a="cartrm" data-id="'+esc(r.it.c.id)+'" data-t="'+r.it.c.t+'" aria-label="Remove this time">✕</button></div></div>';
+        }).join('')+'</div>';
+      }).join('');
+    })()+
+  '</div>'+
   '<div style="display:grid;gap:8px">'+rows+'</div>'+
   (haveCred?'<label class="row" style="gap:8px;font-weight:500"><input type="checkbox" data-c="usecred" '+(ui.useCredits!==false?'checked':'')+'> Use my package credits where they apply</label>':'')+
   /* B5 (12.4): the customer is TOLD the rule even though it does not stop them - a wait is
@@ -5163,7 +5292,31 @@ function checkout(){
   payBlock(plan)+
   personPicker(u)+
   '<p class="sm muted">Free cancellation until '+B().rules.cancelHours+' hours before each start. After that a '+B().rules.lateFeePct+'% late fee applies (a package credit is used instead), and a no-show is charged '+B().rules.noShowFeePct+'%. Payment is simulated in this prototype, so no card is charged.</p>'+
-  '<button class="btn pri" style="width:100%;padding:12px" data-a="cpay" '+((blocking(plan).length||needsPayPick())?'disabled':'')+'>'+(plan.due?'Pay '+money(plan.due)+' and book '+plan.rows.length:'Book '+plan.rows.length+' with credits')+'</button></div></div>';
+  (function(){
+    /* PIECE 4 - THE STICKY BOTTOM ACTION TRIGGER.
+       The choice of wording follows the CHOSEN PATHWAY: a card rail quotes the fee-inclusive total and
+       asks to confirm, an offline rail names the method the family will settle by. Both read from the
+       same cardFeeCents() the row's sub-label and the summary use, so the dock cannot disagree with
+       either of them.
+       The REFUSAL split follows plan.problems' own kinds: blocking() is everything that is not a note or
+       a wait, so a soft nag - a weekly-minimum nudge, a "this will wait" - leaves the button fully live,
+       while a real conflict or gap violation greys it out, turns taps off, and says why in the dock
+       itself rather than leaving the family to guess. */
+    var ppm=payPrefs()||{},ms=(ppm.paymentMethods||[]).filter(function(m){return m&&m.id});
+    var forced=!!(ppm.simulationMode&&ppm.simulationMode.forceOfflineMode);
+    var cid=ui.payMethod||(forced?'':(ms[0]&&ms[0].id));
+    var ch=ms.filter(function(m){return m.id===cid})[0]||null;
+    var card=!!(ch&&ch.type==='live_immediate');
+    var add=card?cardFeeCents(plan.due):0;
+    var hard=blocking(plan),off=hard.length||needsPayPick();
+    var label=!plan.due?('Book '+plan.rows.length+' with credits')
+      :(card?('Pay '+money(plan.due+add)+' & Confirm Slots')
+            :('Book Slots & Settle via '+esc(ch?(ch.label||ch.id):'the desk')));
+    return '<div class="dock'+(off?' off':'')+'">'
+      +(off?'<div class="dockalert" role="alert">'+esc(hard.length?hard.map(function(p){return p.text}).join(' '):'Choose a way to pay to continue.')+'</div>':'')
+      +'<button type="button" class="btn pri dockbtn" data-a="cpay"'+(off?' disabled aria-disabled="true"':'')+'>'+label+'</button>'
+      +'</div>';
+  })();
 }
 function pgPackages(){
   var u=me(),L=LB(),pk=activePkgs(),mine=(u.packs||[]).slice().sort(function(a,b){return a.exp<b.exp?-1:1});
@@ -5410,6 +5563,9 @@ document.addEventListener('click',function(e){
   else if(a==='cartopen'){if((ui.cart||[]).length){ui.review=true;ui.client='';ui.cage='';ui.pid=null}}
   else if(a==='cartclear'){ui.cart=[]}
   else if(a==='cartrm'){ui.cart=(ui.cart||[]).filter(function(c){return !(c.id===el.dataset.id&&c.t===+el.dataset.t)});if(!ui.cart.length)ui.review=false}
+  /* Removing ONE child's times, matched by that child's own id, so a sibling's rows can never be caught
+     up in it by accident - which is the whole point of grouping the cart by swimmer. */
+  else if(a==='cartrmwho'){var wpid=String(el.dataset.v);ui.cart=(ui.cart||[]).filter(function(c){return String(c.pid)!==wpid});if(!ui.cart.length)ui.review=false}
   /* GUIDED ONBOARDING. Selecting a tier lights it, then hands the customer down to the date picker.
      The scroll is deferred by a frame on purpose: the state change triggers a repaint, and scrolling
      before that repaint lands would anchor to a box about to be replaced. Waiting for the frame means
