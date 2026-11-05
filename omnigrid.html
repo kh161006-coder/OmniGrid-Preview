@@ -855,6 +855,58 @@ label.alopt{grid-template-columns:auto 1fr;align-items:start;gap:8px}label.alopt
   background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
 @media (max-width:900px){.pkgbtn{min-height:48px}}
 
+/* ---------- HOW THEY ARE PAYING: the selector, and the drawer each choice opens --------------------
+   A radio row per method the business has enabled, and under the chosen one a drawer that reveals that
+   method's own instructions - plus, for a method with a hold window, the moment the money must land. The
+   drawer animates on grid-template-rows, which goes from 0fr to 1fr and can therefore be transitioned;
+   max-height cannot without inventing a number. */
+.paywrap{display:grid;gap:8px}
+.paylist{display:grid;gap:6px}
+.payrow{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;text-align:left;
+  border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 14px;
+  font:inherit;color:inherit;cursor:pointer}
+.payrow.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);
+  background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.paydot{width:20px;height:20px;border-radius:50%;border:2px solid var(--line2);flex:none;display:grid;place-items:center}
+.payrow.on .paydot{border-color:var(--accent)}
+.payrow.on .paydot::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.paytxt{display:grid;gap:1px;min-width:0}
+.paydraw{display:grid;grid-template-rows:0fr;overflow:hidden;
+  transition:grid-template-rows .28s cubic-bezier(.2,.9,.25,1)}
+.paydraw.open{grid-template-rows:1fr}
+.payinner{min-height:0;overflow:hidden}
+.paydraw.open .payinner{border-left:3px solid color-mix(in srgb,var(--accent) 45%,var(--line));
+  margin:0 0 4px 12px;padding:8px 0 6px 12px;display:grid;gap:4px}
+.payfee{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  border:1px solid var(--line);background:var(--surface2);border-radius:12px;padding:10px 14px}
+@media (prefers-reduced-motion:reduce){.paydraw{transition:none}}
+
+/* ---------- PIECE 1: THE CHECKOUT HEADER (the spacing shield) --------------------------------------
+   Sticky to the top of its surface, with an explicit boundary of max(1rem, safe-area inset top) so the
+   title and the Back link are permanently clear of the device's own clock, battery indicators and
+   notches - the thing that goes wrong first on a 360px screen. Deep low-glare slate at 80% behind a
+   blur, so what scrolls passes BEHIND the bar instead of colliding with it, and one hairline slate
+   divider below. The three children sit in a grid of equal outer columns, so the right-hand spacer is
+   the exact mirror of the back link and the title lands on the true centre line. */
+.ckhead{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:1fr auto 1fr;
+  align-items:center;gap:8px;margin:0 -20px 10px;color:#e2e8f0;
+  padding:max(1rem,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));
+  background:rgba(2,6,23,.8);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);
+  border-bottom:1px solid #0f172a}
+.ckback{display:inline-flex;align-items:center;gap:6px;justify-self:start;
+  min-height:44px;padding:14px 10px 14px 0;background:none;border:0;border-radius:10px;
+  color:#cbd5e1;font:inherit;font-size:14.5px;font-weight:500;cursor:pointer}
+.ckback:hover{color:#f8fafc}
+.cktitle{margin:0;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  white-space:nowrap;text-align:center;color:#f8fafc}
+.ckspace{display:block;min-width:64px}
+.cksub{text-align:center;margin:-4px 0 12px}
+@media (max-width:900px){.ckback{padding-top:16px;padding-bottom:16px}}
+@media (prefers-reduced-transparency:reduce){
+  .ckhead{background:#020617;-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+
 /* ---- live-data loading skeleton ---- */
 .syncbox{max-width:520px;margin:12vh auto 0;display:grid;gap:14px}
 .skel{display:grid;gap:10px}.skel i{display:block;height:44px;border-radius:10px;background:linear-gradient(90deg,var(--line),color-mix(in srgb,var(--line) 40%,var(--surface)),var(--line));background-size:200% 100%;animation:skelmove 1.2s ease-in-out infinite}
@@ -1818,7 +1870,7 @@ function serverCommitCart(rows,u,who){
     return get.then(function(cid){
       return { row:r, label:String(p.name||''), spec:{
         slot_id:r.it.x.slotId, handle:r.it.x.handle, start:r.it.c.t, length:r.it.sv.min,
-        consumer_id:cid, payment:'outside',
+        consumer_id:cid, payment:ui.payMethod?undefined:'outside', method:ui.payMethod||undefined,
         idempotency_key:String(ui.payStamp||'pay')+'-'+String(r.it.c.id)+'-'+r.it.c.t,
       } };
     });
@@ -2293,6 +2345,52 @@ function remoteSession(){return REMOTE?{businessId:REMOTE.businessId,hasToken:tr
 /* serverMode(): true when the host page set window.OMNIGRID_API_BASE. serverLive(): true when this visit also holds a registered owner's token. The business id is never sent: the token carries it. */
 function serverMode(){return remoteBase()!==null}
 function serverLive(){return serverMode()&&!!REMOTE&&!!REMOTE.token}
+/* PAYMENT PREFERENCES, fetched once and kept. The checkout renders from this: which ways to pay the
+   business offers, what each one does to the clock, and whether the card markup is passed on. */
+var PAYPREFS=null,PAYPULL=false;
+function loadPayPrefs(){
+  if(PAYPREFS||PAYPULL||!serverLive())return;
+  PAYPULL=true;
+  remoteCall('GET','/api/v1/payment-prefs').then(function(r){
+    PAYPULL=false;
+    if(r&&r.status===200&&r.body&&Array.isArray(r.body.paymentMethods)){PAYPREFS=r.body;try{paint()}catch(e){}}
+  },function(){PAYPULL=false});
+}
+function payPrefs(){return PAYPREFS}
+/* MILESTONE STATE (§12.14). The server holds the authority - it counts the completed bookings and
+   applies the business's own strategy - and this is only a cache of its answer, asked once per swimmer.
+   The offline single-file copy has no server, so the same rule is counted from this browser's own
+   bookings: completed, or attended. */
+var MILESTONES={};
+function loadMilestone(pid){
+  if(!pid||!serverLive()||MILESTONES[pid]||MILESTONES['_p'+pid])return;
+  MILESTONES['_p'+pid]=true;
+  remoteCall('GET','/api/v1/consumers/'+encodeURIComponent(pid)+'/milestone').then(function(r){
+    if(r&&r.status===200&&r.body){MILESTONES[pid]=r.body;try{paint()}catch(e){}}
+    else MILESTONES['_p'+pid]=false;
+  },function(){MILESTONES['_p'+pid]=false});
+}
+function milestoneOf(pid){
+  if(!pid)return null;
+  if(serverLive())return MILESTONES[pid]||null;
+  var n=0;
+  (B().book||[]).forEach(function(k){if(k.pid===pid&&(k.status==='completed'||k.att==='done'))n++});
+  var cp=B().creditSharing||{};
+  var thr=(Number.isFinite(Number(cp.sharingMilestoneThreshold)))?Number(cp.sharingMilestoneThreshold):36;
+  var strat=cp.creditSharingStrategy||'tiered_milestone';
+  if(strat==='full_family')return {person_id:pid,completed:n,threshold:thr,strategy:strat,shared:true,locked:false};
+  if(strat==='strict_swimmer')return {person_id:pid,completed:n,threshold:thr,strategy:strat,shared:false,locked:true};
+  return {person_id:pid,completed:n,threshold:thr,strategy:strat,shared:n>=thr,locked:n<thr,remaining:Math.max(0,thr-n)};
+}
+/* the card markup for this amount, or 0 when the business absorbs it */
+function cardFeeCents(cents){
+  var p=PAYPREFS;
+  if(!p||p.stripeFeeAllocation!=='pass_through')return 0;
+  var pct=Number(p.cardFeePct),flat=Number(p.cardFeeFlatCents);
+  if(!isFinite(pct))pct=0;
+  if(!isFinite(flat))flat=0;
+  return Math.max(0,Math.round(cents*pct/100)+flat);
+}
 /* Resolves to {status,body}; never rejects. Resolves to null when there is no live server session (prototype mode). */
 function remoteCall(method,path,payload){
   if(!serverLive())return Promise.resolve(null);
@@ -4814,21 +4912,44 @@ function perSession(p){return Math.round(p.cents/p.qty)}
 function packLive(pk){return pk.left>0&&pk.exp>=TODAY}
 function packValue(pk){return Math.round(pk.paid/pk.total)}
 function pkgScope(p){var s=p.svc&&svcOf(p.svc);return s?s.name:'Any service'}
-/* the live pack that should pay for a service: soonest to expire first. `used` counts credits already earmarked in this cart */
-function packFor(u,svcId,used){
+/* the live pack that should pay for a service: soonest to expire first. `used` counts credits already
+   earmarked in this cart.
+   §12.14 ENFORCEMENT, deliberately a condition in this scan rather than a new structure: a pack carrying
+   a swimmerId belongs to that swimmer. It may always pay for them, and may pay for anyone else only once
+   that swimmer has graduated. Whether they have is not decided here - it is whatever strategy the
+   business set, resolved by the same milestone the server counts - so a sibling can never quietly draw
+   another child's intro credits, and the moment that child graduates those credits join the household
+   pool by themselves. A pack with no swimmerId is a family pack and is shared exactly as before. */
+function packFor(u,svcId,used,pid){
   var best=null;
   (u.packs||[]).forEach(function(pk){
     if(!packLive(pk)||(pk.svc&&pk.svc!==svcId))return;
     if(pk.left-((used&&used[pk.id])||0)<=0)return;
+    if(!packMayPayFor(pk,pid))return;
     if(!best||pk.exp<best.exp)best=pk;
   });
   return best;
 }
+/* May this credit pay for this swimmer? */
+function packMayPayFor(pk,pid){
+  var owner=pk&&pk.swimmerId;
+  if(!owner)return true;                              /* a family pack: anyone may draw on it */
+  if(pid&&String(pid)===String(owner))return true;    /* always its own swimmer's to use */
+  var m=milestoneOf(owner);
+  if(!m)return false;                                 /* not answered yet: fail closed, never open */
+  return !!m.shared;                                  /* graduated -> it joins the household pool */
+}
 function creditsFor(u,svcId){var n=0;(u.packs||[]).forEach(function(pk){if(packLive(pk)&&(!pk.svc||pk.svc===svcId))n+=pk.left});return n}
-function buyPack(pkgId){
+function buyPack(pkgId,forPid){
   var p=pkgOf(pkgId),u=me();if(!p||!p.active||u.role!=='customer')return null;
+  /* §12.14: an intro / survival package is bought FOR a swimmer, and those credits are theirs. A
+     continuing package is the household's and carries no owner at all, which is what makes it drawable
+     by everyone. An intro package with no swimmer named is REFUSED rather than guessed at: it would
+     silently become communal, which is the very thing §12.14 exists to prevent. */
+  var intro=!!(p.route?p.route==='intro':p.firstOnly);
+  if(intro&&!forPid){toast('Choose which swimmer this '+(p.name||'course')+' is for first');return null}
   u.packs=u.packs||[];
-  var pk={id:uid('pk'),pkgId:p.id,name:p.name,svc:p.svc||'',total:p.qty,left:p.qty,paid:p.cents,bought:TODAY,exp:ds(addD(T0,p.days)),rule:p.rule||'',need:p.need||0,firstMin:p.firstMin||0,firstOnly:!!p.firstOnly,firstEvery:!!p.firstEvery};
+  var pk={id:uid('pk'),pkgId:p.id,name:p.name,svc:p.svc||'',total:p.qty,left:p.qty,paid:p.cents,bought:TODAY,exp:ds(addD(T0,p.days)),rule:p.rule||'',need:p.need||0,firstMin:p.firstMin||0,firstOnly:!!p.firstOnly,firstEvery:!!p.firstEvery,swimmerId:intro?(forPid||null):null};
   u.packs.push(pk);return pk;
 }
 /* ----- cart: several times in one visit ----- */
@@ -4848,7 +4969,7 @@ function cartToggle(id,t){
 function cartPlan(){
   var u=me(),used={},rows=[],due=0;
   cartItems().forEach(function(it){
-    var pk=(ui.useCredits===false||it.sv.variant)?null:packFor(u,it.sv.id,used);
+    var pk=(ui.useCredits===false||it.sv.variant)?null:packFor(u,it.sv.id,used,it.c.pid);
     if(pk)used[pk.id]=(used[pk.id]||0)+1;else due+=it.sv.cents;
     rows.push({it:it,pk:pk});
   });
@@ -4930,6 +5051,66 @@ function cartBar(){
   var plan=cartPlan();
   return '<div class="cartbar" role="region" aria-label="Your selection"><div><b>'+items.length+' time'+(items.length===1?'':'s')+' selected</b><div class="sm muted">'+(plan.credits?plan.credits+' with package credits · ':'')+(plan.due?money(plan.due)+' to pay':'nothing to pay')+'</div>'+(blocking(plan).length?'<div class="sm" style="color:var(--warn)">'+(blocking(plan)[0].kind==='rule'?'Limit reached: ':'Registration incomplete: ')+esc(blocking(plan)[0].text)+'</div>':'')+(notes(plan).length?'<div class="sm muted">'+esc(notes(plan)[0].text)+'</div>':'')+'</div><div class="row" style="gap:8px"><button class="btn sm" data-a="cartclear">Clear</button><button class="btn pri" data-a="cartopen">Review and book</button></div></div>';
 }
+/* ---------- HOW THEY ARE PAYING ----------
+   Rendered from the business's own preferences rather than hard-coded: any method it has enabled appears
+   here, and the one chosen is what the server is told. Choosing an offline method opens its own
+   instructions in place with an animated reveal; a method carrying a hold window shows the actual moment
+   the money must land, computed from the window rather than written down. When simulationMode
+   .forceOfflineMode is on, the card refuses to fall through as a generic trust booking: with nothing
+   chosen there is no pay button, so the selectors and their drawers get reviewed on purpose. */
+/* WHAT THE MILESTONE MEANS FOR THIS CART. Every child in it is asked about, once, and a child still
+   inside their intro lessons is named: their credits are theirs until they have been through enough
+   lessons, and the household pool opens for them after that. §12.14, answered by the server's own count
+   rather than by anything this page decided. */
+function sharingNote(plan){
+  if(!serverLive())return '';
+  var seen={},lines=[];
+  ((plan&&plan.rows)||[]).forEach(function(r){
+    var pid=r.it.c&&r.it.c.pid;
+    if(!pid||seen[pid])return;
+    seen[pid]=1;
+    loadMilestone(pid);
+    var m=milestoneOf(pid);
+    if(!m||m.shared)return;
+    var who=(me().people||[]).filter(function(q){return q.id===pid})[0];
+    lines.push('<div class="sm">'+esc(who?who.name:'This swimmer')+' has been through '+m.completed+' of '+m.threshold
+      +' lessons, so their intro credits stay theirs'+(m.remaining?(' — '+m.remaining+' more to go'):'')+'.</div>');
+  });
+  if(!lines.length)return '';
+  return '<div class="card flat" style="background:var(--surface2)" role="status"><b>Credits, and who they belong to</b>'+lines.join('')+'</div>';
+}
+function needsPayPick(){var p=payPrefs();return !!(p&&p.simulationMode&&p.simulationMode.forceOfflineMode&&!ui.payMethod)}
+function payBlock(plan){
+  if(!serverLive())return '';
+  var prefs=payPrefs();
+  if(!prefs)return '<div class="card flat muted sm">Loading ways to pay…</div>';
+  var methods=(prefs.paymentMethods||[]).filter(function(m){return m&&m.id});
+  if(!methods.length)return '';
+  var forced=!!(prefs.simulationMode&&prefs.simulationMode.forceOfflineMode);
+  var pick=ui.payMethod||(forced?'':methods[0].id);
+  var due=(plan&&plan.due)||0,fee=cardFeeCents(due);
+  var h='<div class="paywrap"><div class="eyebrow">How would you like to pay?</div><div class="paylist" role="radiogroup" aria-label="How to pay">';
+  methods.forEach(function(m){
+    var on=(pick===m.id),when='';
+    if(m.type==='short_term_hold'&&m.holdWindowMinutes){
+      var at=new Date(Date.now()+Number(m.holdWindowMinutes)*60000);
+      when='Please submit payment by '+at.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})+'.';
+    }
+    h+='<button type="button" class="payrow'+(on?' on':'')+'" role="radio" aria-checked="'+on+'" data-a="paymethod" data-v="'+esc(m.id)+'">'
+      +'<span class="paydot" aria-hidden="true"></span><span class="paytxt"><b>'+esc(m.label||m.id)+'</b>'
+      +'<span class="sm muted">'+(m.type==='live_immediate'?'Instant confirmation':(m.type==='short_term_hold'?('Held for '+m.holdWindowMinutes+' minutes'):'Settle at the desk'))+'</span></span></button>'
+      +'<div class="paydraw'+(on?' open':'')+'"><div class="payinner">'
+      +(m.instructions?'<div class="sm">'+esc(m.instructions)+'</div>':'')
+      +(when?'<div class="sm"><b>'+esc(when)+'</b></div>':'')+'</div></div>';
+  });
+  h+='</div>';
+  if(fee){
+    h+='<div class="payfee"><span class="sm">Card convenience fee ('+esc(String(prefs.cardFeePct))+'% + '+money(prefs.cardFeeFlatCents)+')</span><b class="mono">'+money(fee)+'</b></div>'
+      +'<div class="payfee"><span class="sm"><b>Total if you pay by card</b></span><b class="mono">'+money(due+fee)+'</b></div>';
+  }
+  if(forced&&!ui.payMethod)h+='<div class="sm muted">Choose a way to pay to continue.</div>';
+  return h+'</div>';
+}
 function checkout(){
   if(ui.buy){
     var p=pkgOf(ui.buy);if(!p)return '';
@@ -4940,6 +5121,7 @@ function checkout(){
     '<button class="btn pri" style="width:100%;padding:12px" data-a="pkpay">Pay '+money(p.cents)+' and buy</button></div></div>';
   }
   if(!ui.review)return '';
+  loadPayPrefs();
   var plan=cartPlan(),L=LB(),u=me();if(!plan.rows.length){ui.review=false;return ''}
   var pp=u.people||[];
   var rows=plan.rows.map(function(r,i){
@@ -4951,7 +5133,19 @@ function checkout(){
   return '<div class="scrim" data-a="close"><div class="sheet actioncard" role="dialog" aria-modal="true" aria-label="Confirm and pay">'+
   /* the handle the card is dragged by, and the flat single column everything else sits in */
   '<div class="grab" aria-hidden="true"></div>'+
-  '<div class="row sp"><h3 style="font-size:20px">Confirm '+plan.rows.length+' '+esc(L.session.toLowerCase())+(plan.rows.length===1?'':'s')+'</h3><button class="btn sm" data-a="close">Close</button></div>'+
+  /* PIECE 1 - THE CHECKOUT HEADER. Sticky to the top of this surface and padded clear of the device's
+     own status bar, so the title and Back never fall under a clock, a battery indicator or a notch. The
+     right-hand block is not decoration: it mirrors the back link's width and is what holds the title on
+     the true centre line rather than merely near it. */
+  '<header class="ckhead" role="banner">'+
+    '<button type="button" class="ckback" data-a="close" aria-label="Back to your selections">'+
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>'+
+      '<span>Back</span>'+
+    '</button>'+
+    '<h2 class="cktitle">Review &amp; Checkout</h2>'+
+    '<span class="ckspace" aria-hidden="true"></span>'+
+  '</header>'+
+  '<div class="cksub sm muted">Confirm '+plan.rows.length+' '+esc(L.session.toLowerCase())+(plan.rows.length===1?'':'s')+'</div>'+
   '<div class="acsum">'+plan.rows.map(function(r){
     var st=staffOf(r.it.x.sid),d=pd(r.it.x.date);
     return '<div class="acrow">'+avatar(st,44)+'<div style="min-width:0"><b>'+esc(st.name)+'</b>'+
@@ -4965,9 +5159,11 @@ function checkout(){
      booked and held, so it reads as a heads-up rather than an error, and role="status". */
   (waits(plan).length?'<div class="card flat" style="background:var(--warn-soft);border-color:var(--warn)" role="status"><b>This will wait</b>'+waits(plan).map(function(p){return '<div class="sm">'+esc(p.text)+'</div>'}).join('')+'</div>':'')+
   (blocking(plan).length?'<div class="card flat" style="background:var(--warn-soft);border-color:var(--warn)" role="alert"><b>'+(blocking(plan).some(function(p){return p.kind!=='rule'})?'Registration needed':'Booking limit reached')+'</b>'+blocking(plan).map(function(p){return '<div class="sm">'+esc(p.text)+'</div>'}).join('')+'<div class="sm muted" style="margin-top:4px">Close this and pick more times to meet it.</div></div>':'')+(notes(plan).length?'<div class="card flat" role="status"><b>Worth knowing</b>'+notes(plan).map(function(p){return '<div class="sm muted">'+esc(p.text)+'</div>'}).join('')+'</div>':'')+
+  sharingNote(plan)+
+  payBlock(plan)+
   personPicker(u)+
   '<p class="sm muted">Free cancellation until '+B().rules.cancelHours+' hours before each start. After that a '+B().rules.lateFeePct+'% late fee applies (a package credit is used instead), and a no-show is charged '+B().rules.noShowFeePct+'%. Payment is simulated in this prototype, so no card is charged.</p>'+
-  '<button class="btn pri" style="width:100%;padding:12px" data-a="cpay" '+(blocking(plan).length?'disabled':'')+'>'+(plan.due?'Pay '+money(plan.due)+' and book '+plan.rows.length:'Book '+plan.rows.length+' with credits')+'</button></div></div>';
+  '<button class="btn pri" style="width:100%;padding:12px" data-a="cpay" '+((blocking(plan).length||needsPayPick())?'disabled':'')+'>'+(plan.due?'Pay '+money(plan.due)+' and book '+plan.rows.length:'Book '+plan.rows.length+' with credits')+'</button></div></div>';
 }
 function pgPackages(){
   var u=me(),L=LB(),pk=activePkgs(),mine=(u.packs||[]).slice().sort(function(a,b){return a.exp<b.exp?-1:1});
@@ -5198,6 +5394,15 @@ document.addEventListener('click',function(e){
     ui.cdate=clist.length?clist[0]:ui.cdate;
     ui.cmonth=(pd(ui.cdate).getFullYear()-T0.getFullYear())*12+pd(ui.cdate).getMonth()-T0.getMonth();
   }catch(cerr){toast('Date picker: '+cerr.message)}}
+  /* Choosing a way to pay. The drawer opens from the repaint that follows, and a method carrying a hold
+     window announces the actual deadline the moment it is chosen - computed from the window the business
+     set, never written down. */
+  else if(a==='paymethod'){ui.payMethod=el.dataset.v||'';
+    var ppm=payPrefs(),pmm=ppm&&(ppm.paymentMethods||[]).filter(function(m){return m.id===ui.payMethod})[0];
+    if(pmm&&pmm.type==='short_term_hold'&&pmm.holdWindowMinutes){
+      var pat=new Date(Date.now()+Number(pmm.holdWindowMinutes)*60000);
+      toast('Please submit payment by '+pat.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})+' to keep these slots');
+    }}
   else if(a==='instr'){ui.instr=el.dataset.v||null}
   else if(a==='cday'||a==='cnext'){ui.cdates=[];ui.cdate=el.dataset.d;var cd=pd(ui.cdate);ui.cmonth=(cd.getFullYear()-T0.getFullYear())*12+cd.getMonth()-T0.getMonth()}
   else if(a==='cmonth'){ui.cmonth=Math.max(0,Math.min(maxMonthOff(),ui.cmonth+ +el.dataset.v))}
@@ -5216,7 +5421,7 @@ document.addEventListener('click',function(e){
       try{window.scrollTo({top:top,behavior:'smooth'})}catch(e){window.scrollTo(0,top)}};
     if(window.requestAnimationFrame)requestAnimationFrame(function(){requestAnimationFrame(pkAnchor)});else setTimeout(pkAnchor,0)}}
   else if(a==='pkbuy'){if(pkgOf(el.dataset.id)&&me().role==='customer')ui.buy=el.dataset.id}
-  else if(a==='pkpay'){var bp=ui.buy&&buyPack(ui.buy);if(bp){ui.buy=null;toast(bp.name+' bought: '+bp.total+' credits (payment simulated). Use them when you book')}}
+  else if(a==='pkpay'){var bp=ui.buy&&buyPack(ui.buy,ui.pid);if(bp){ui.buy=null;toast(bp.name+' bought: '+bp.total+' credits (payment simulated). Use them when you book')}}
   else if(a==='pkaddopen'){var kk=el.dataset.svc||'any';ui.pkAdd=ui.pkAdd||{};ui.pkAdd[kk]=!ui.pkAdd[kk];if(!ui.pkAdd[kk]&&ui.pkRule)delete ui.pkRule[kk]}
   else if(a==='pktoggle'){var pt=pkgOf(el.dataset.id);if(pt&&me().role!=='customer')pt.active=!pt.active}
   else if(a==='pkdel'){var pd2=pkgOf(el.dataset.id);if(pd2&&me().role!=='customer'){B().packages=B().packages.filter(function(x){return x.id!==pd2.id});toast(pd2.name+' removed. Packages already bought keep their credits')}}
