@@ -1592,9 +1592,67 @@ function sequenceProblems(plan){
   });
   return out;
 }
+/* §2.2/§5: the customer calendar reads the SERVER, not this browser's copy.
+   A rolling 14-day window (today plus 13) is pulled once per offering+site and cached for a minute.
+   The rows are handed back in exactly the shape the calendar already renders, so nothing downstream
+   changes; each server run is materialised as a local shift marked srv, which is what shiftOf() and
+   the cart need and nothing else reads.
+   In hosted mode the server is the ONLY source: with no answer yet the day shows nothing rather than
+   this browser's stale copy. With no live server the offline single-file copy behaves as before. */
+var SRVAVAIL={},srvPulling={};
+function srvKey(sv,loc){return sv.id+'|'+loc}
+function srvIsLive(sv){return !!(sv&&sv.remoteId&&serverLive())}
+function localStaffByRemote(rid){return B().staff.filter(function(p){return p.remoteId===rid})[0]||null}
+function localClsByName(nm){return B().classes.filter(function(c){return c.name===nm})[0]||null}
+function pullSrvAvail(sv,loc){
+  if(!srvIsLive(sv))return Promise.resolve(null);
+  var k=srvKey(sv,loc),c=SRVAVAIL[k];
+  if(c&&Date.now()-c.at<60000)return Promise.resolve(c);
+  if(srvPulling[k])return srvPulling[k];                 /* one in flight per offering+site */
+  var to=ds(addD(pd(TODAY),13));                         /* the rolling window */
+  srvPulling[k]=remoteCall('GET','/api/availability?service_id='+encodeURIComponent(sv.remoteId)+'&from='+TODAY+'&to='+to)
+    .then(function(r){
+      delete srvPulling[k];
+      if(!r||r.status!==200||!r.body||!Array.isArray(r.body.days))return null;
+      var out={at:Date.now(),days:r.body.days,from:TODAY,to:to};SRVAVAIL[k]=out;return out;
+    },function(){delete srvPulling[k];return null});
+  return srvPulling[k];
+}
+/* the customer page calls this once per render; it repaints only when a fresh answer arrives */
+function ensureSrvAvail(sv,loc){
+  if(!srvIsLive(sv))return;
+  var c=SRVAVAIL[srvKey(sv,loc)];
+  if(c&&Date.now()-c.at<60000)return;
+  pullSrvAvail(sv,loc).then(function(r){if(r)paint()});
+}
+/* one server run -> the local shift the rest of the app expects. Returns null when this browser cannot
+   name the person or the class, so an unmatchable slot is dropped rather than shown wrong. */
+function srvShift(date,loc,svc,sl){
+  var s=localStaffByRemote(sl.staff_id),cls=localClsByName(sl.class_name);
+  if(!s||!cls||!(sl.starts||[]).length)return null;
+  var id='srv:'+date+':'+sl.staff_id+':'+sl.starts[0],x=shiftOf(id);
+  var ts=sl.starts.slice();
+  if(!x){x={id:id,date:date,loc:loc,sid:s.id,cls:cls.id,sm:ts[0],em:ts[ts.length-1]+svc.min,online:true,srv:true};B().shifts.push(x)}
+  else{x.sm=ts[0];x.em=ts[ts.length-1]+svc.min}
+  return x;
+}
+function srvRows(date,loc,svc){
+  var c=SRVAVAIL[srvKey(svc,loc)];
+  if(!c)return null;                                     /* not answered yet: say nothing, not stale */
+  var day=null;c.days.forEach(function(d){if(d&&d.date===date)day=d});
+  if(!day)return [];
+  var out=[];
+  (day.slots||[]).forEach(function(sl){
+    var x=srvShift(date,loc,svc,sl);if(!x)return;
+    var s=staffOf(x.sid);if(!s)return;
+    out.push({x:x,s:s,ts:sl.starts.slice()});
+  });
+  return out;
+}
 /* what a customer may book: online shifts that are valid, with enough free time for the service */
 function openStarts(date,loc,svc){
   var out=[],R=B().rules;
+  if(srvIsLive(svc))return srvRows(date,loc,svc)||[];    /* hosted: the server decides, and only it */
   if(!R.onlineOn||date<TODAY||pd(date)>addD(T0,bkOf(svc).ahead))return out;
   shiftsOn(date,loc).forEach(function(x){
     var s=staffOf(x.sid);if(!s||!s.active||x.online===false||!clsOf(x.cls).bookable||shiftIssues(x).length||!allocOk(x,svc))return;
@@ -2196,7 +2254,9 @@ function applyServerData(staffRows,svcRows){
   bz.staff.forEach(function(s){if(s.remoteId)oldS[s.remoteId]=s});bz.services.forEach(function(s){if(s.remoteId)oldV[s.remoteId]=s});
   bz.staff=staffRows.map(function(r,i){
     var o=oldS[r.id]||{},sid=o.id||bz.id+'-s'+String(r.id).slice(0,8);
-    var st={id:sid,name:r.display_name,title:r.title||LB().staff,cls:o.cls||(ci?[ci]:[]),c:o.c||'e'+(i%5+1),maxHours:Math.round(+r.billing_hour_limit_weekly)||0,payCents:Math.round(+r.base_pay_rate_cents)||0,locs:o.locs||locs.slice(),active:r.is_active!==false,phone:o.phone||'',certs:o.certs||[],remoteId:r.id,synced:true};
+    /* login is the person's users.id - it is what the booking engine names a provider by, so a provider
+       with no login cannot be booked through it at all. Carried here so the checkout can use it. */
+    var st={id:sid,name:r.display_name,title:r.title||LB().staff,cls:o.cls||(ci?[ci]:[]),c:o.c||'e'+(i%5+1),maxHours:Math.round(+r.billing_hour_limit_weekly)||0,payCents:Math.round(+r.base_pay_rate_cents)||0,locs:o.locs||locs.slice(),active:r.is_active!==false,phone:o.phone||'',certs:o.certs||[],login:r.user_id||null,remoteId:r.id,synced:true};
     bz.avail[sid]=bz.avail[sid]||{};bz.pref[sid]=bz.pref[sid]||{};return st;
   });
   bz.services=svcRows.map(function(r){
@@ -2930,10 +2990,27 @@ function calSubmit(f,v){
   var a=ui.cadd;if(!a)return true;
   var dates=[],ok=0,bad=[],cur=dIdx(a.date),days=[cur].concat((ui.cdays||[]).filter(function(x){return x!==cur&&x>-1&&x<7}));
   for(var wi=0;wi<(a.rep==='weekly'?a.n:1);wi++)days.forEach(function(di){dates.push(ds(addD(pd(a.date),7*wi+di-cur)))});
-  dates.forEach(function(d){var r=winPublish(a.sid,d,ui.loc,a.cls,a.sm,a.em,a.online!==false);if(r&&r.err)bad.push(r.err);else ok++});
-  if(!ok){toast(bad[0]||'Could not publish');return true}
-  ui.cday=a.date;ui.cadd=null;
-  toast('Published '+fm(a.sm)+' – '+fm(a.em)+(dates.length>1?' on '+ok+' of '+dates.length+' days':'')+(bad.length?' ('+bad.length+' skipped)':''));
+  /* §5 item 2: availability the owner publishes has to reach the SERVER, or a customer in another
+     browser never sees it - which is exactly what stopped two-browser testing. This sheet used to
+     write only to THIS browser while telling the owner it had "Published"; the paintbrush already
+     did it properly. Same order as the paintbrush: the server first, the screen last, so a refused
+     save is never shown as published. With no live server, pushWindow resolves null and the local
+     write stands on its own, which is what the offline single-file copy needs. */
+  var sid=a.sid,loc=ui.loc,cls=a.cls,sm=a.sm,em=a.em,online=a.online!==false;
+  Promise.all(dates.map(function(d){
+    return pushWindow(sid,d,loc,cls,sm,em).then(function(sv){
+      if(sv===false)return {err:'the server did not save it'};
+      var keep=ui.loc;ui.loc=loc;var r=winPublish(sid,d,loc,cls,sm,em,online);ui.loc=keep;
+      return (r&&r.err)?{err:r.err}:{};
+    });
+  })).then(function(res){
+    var good=0,why=[];
+    res.forEach(function(r){if(r.err)why.push(r.err);else good++});
+    if(!good){ui.cadd=null;toast(why[0]?(why[0]+'. Nothing was published'):'Could not publish');save();paint();return}
+    ui.cday=a.date;ui.cadd=null;
+    toast('Published '+fm(sm)+' – '+fm(em)+(dates.length>1?' on '+good+' of '+dates.length+' days':'')+(why.length?' ('+why.length+' skipped)':''));
+    save();paint();
+  });
   return true;
 }
 /* ---------- dragging on the calendar (pointer events; works with mouse, pen and touch) ---------- */
@@ -4261,6 +4338,10 @@ function pgBook(){
   if(!R.onlineOn)return h+'<div class="card flat">Online booking is paused right now. Please contact '+esc(B().name)+'.</div>';
   if(!svcs.length)return h+'<div class="card flat">Nothing is available to book online right now.</div>';
   sv=svcOf(ui.cs);if(!sv||!sv.active){sv=svcs[0];ui.cs=sv.id}
+  /* §2.2/§5: pull the rolling 14 days from the server. Everything below this line renders from that
+     answer, not from this browser's copy - so until it lands, say so rather than showing a guess. */
+  ensureSrvAvail(sv,ui.loc);
+  if(srvIsLive(sv)&&!SRVAVAIL[srvKey(sv,ui.loc)])return h+'<div class="card flat muted">Loading open times from '+esc(B().name)+'...</div>';
   h+='<div><div class="eyebrow" style="margin-bottom:8px">1 · What do you need?</div><div class="svcgrid" role="group" aria-label="Service">'+svcs.map(function(s){return '<button class="svc" aria-pressed="'+(s.id===sv.id)+'" data-a="cservice" data-v="'+s.id+'"><b>'+esc(s.name)+'</b><span class="muted sm">'+fdur(s.min)+'</span><span class="price mono">'+(soldSingle(s)?money(s.cents):'Packages only')+'</span>'+(function(){var best=null;(B().packages||[]).forEach(function(p){if(p.active&&(!p.svc||p.svc===s.id)&&(best===null||perSession(p)<best))best=perSession(p)});return best!==null?'<span class="sm muted">Packs from '+money(best)+' each</span>':''})()+'</button>'}).join('')+'</div></div>';
   if(soldSingle(sv)&&(sv.more||[]).length){sv=svcVar(sv,(ui.clen||{})[sv.id]);h+=lenChips(svcOf(sv.id),sv)}
   var cr=creditsFor(me(),sv.id);if(cr)h+='<div class="card flat" style="background:var(--ok-soft)"><b>'+CHECK+' You have '+cr+' package credit'+(cr===1?'':'s')+' for this.</b> <span class="sm muted">They are used automatically at checkout.</span></div>';
