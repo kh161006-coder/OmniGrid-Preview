@@ -713,6 +713,70 @@ label.alopt{grid-template-columns:auto 1fr;align-items:start;gap:8px}label.alopt
 .drawerscrim .drawer{pointer-events:auto;width:340px;max-width:100%;height:100%;max-height:none;border-radius:0;border-width:0 0 0 1px;box-shadow:-10px 0 28px rgba(0,0,0,.12);align-content:start;animation:drawerin .2s ease-in-out}
 }
 @keyframes drawerin{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+
+/* ---------- mobile presentation, modernised ---------------------------------------------------
+   Four changes, all from 900px down, all additive so the desktop layout is untouched.
+     1. NO HORIZONTAL SLIDERS. The per-page pill strip - a flex row with its own edge-to-edge
+        scroller, which is where the loose perimeters came from - is gone. Navigation moves to a
+        fixed bar along the bottom, inside the thumb's arc, and switches instantly with no scrolling.
+     2. A COMPACT STICKY TOP BAR. The logo drops to its mark and a small wordmark, the portal label
+        and the old "viewing business as" perimeter go, and the bar sits at 44px so the calendar and
+        the roster streams get the viewport back.
+     3. THE ACCOUNT IS ONE CHIP. The bordered form field and its label are gone; what remains is a
+        small rounded chip carrying the current identity, and the switch still works for a super user.
+     4. EVERY TARGET IS AT LEAST 48px, and nothing here depends on hover. */
+@media (max-width:900px){
+  .shell{padding-bottom:126px}                       /* room for the bar, so nothing hides under it */
+  /* 2. the compact sticky top bar. No backdrop-filter here on purpose: a filter makes this element a
+        containing block for fixed children, which would pin the bottom bar to the header instead of
+        the viewport - the browser caught exactly that. A solid bar, and the bar's own blur is on itself. */
+  .side{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:8px;
+        min-height:52px;padding:4px max(10px,env(safe-area-inset-left,0px));
+        background:var(--bg);border-bottom:1px solid var(--line)}
+  .side .sbrand{font-size:13px;gap:7px;min-width:0;flex:0 1 auto}
+  .side .sbrand svg,.side .sbrand .mark{width:19px;height:19px}
+  .side .ptag{display:none}                          /* the portal label is noise on a phone */
+  .side .mobout{height:48px;padding:0 14px;font-size:12.5px;border-radius:999px;flex:0 0 auto}
+  /* 3. the account, as one chip - the perimeter goes, the switch stays */
+  .side .viewas{margin:0 0 0 auto;background:none;border:0;padding:0;box-shadow:none;min-width:0;display:flex}
+  .side .viewas label{display:none}
+  .side .viewas select{height:48px;max-width:min(46vw,190px);font-size:12.5px;border-radius:999px;
+        padding:0 12px;border:1px solid var(--line);background:var(--surface);color:inherit}
+  /* 1. the bottom switcher: instant, in the thumb zone, no scroller */
+  .side .nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;
+        width:100%;box-sizing:border-box;overflow-x:hidden;
+        grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:auto;gap:2px;
+        margin:0;scrollbar-width:none;
+        padding:6px max(6px,env(safe-area-inset-left,0px)) calc(6px + env(safe-area-inset-bottom,0px));
+        background:color-mix(in srgb,var(--surface) 96%,transparent);backdrop-filter:blur(12px);
+        border-top:1px solid var(--line)}
+  .side .nav .nl{position:relative;min-width:0;min-height:48px;border:0;background:transparent;border-radius:11px;
+        padding:4px 3px;font-size:10.5px;line-height:1.15;font-weight:500;color:var(--muted);
+        display:flex;align-items:center;justify-content:center;text-align:center;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .side .nav .nl[aria-current="page"]{background:color-mix(in srgb,var(--portal) 15%,transparent);
+        color:var(--portal);font-weight:600}
+  .side .nav .nl[aria-current="page"]::before{display:none}
+  .side .nav .nl .nb2{position:absolute;top:1px;right:5px;min-width:16px;height:16px;font-size:10px}
+  /* 1, continued. THE HORIZONTAL SLIDER ITSELF. The week grid is 52px of gutter plus seven columns
+        that could not shrink below 104px - a floor of 780px - so the whole page was dragged wide and
+        the columns slid left to right. The floor goes: the week now fits the screen, so seven days
+        and the current time are all visible at once with nothing to scroll. */
+  .cal,.cal.calweek{grid-template-columns:30px repeat(var(--n,7),minmax(0,1fr))}
+  .cal.calweek{grid-template-columns:30px repeat(7,minmax(0,1fr))}
+  .cal .chd{padding:0 3px;gap:2px}
+  .cal .chd b,.cal .chd.wkh b{font-size:12px;width:auto;height:auto;min-width:0;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+  .cal .chd small,.cal .chd.wkh small,.cal .chd.wkh .wkt{font-size:9px;letter-spacing:0;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ccolw,.ccol,.shutband{min-width:0}
+  .content,.content>*{max-width:100%;min-width:0}
+  /* the page itself must never widen. Without this the fixed bar is sized against a layout viewport
+        that the bar's own overflow had already stretched - the two chase each other and the document
+        ends up 618px wide on a 360px screen. Pinning the document at the screen breaks the loop. */
+  html,body{max-width:100%;overflow-x:hidden}
+  .side .nav .nl{white-space:normal;word-break:break-word;overflow-wrap:anywhere}
+}
 @media (prefers-reduced-motion:reduce){.drawerscrim .drawer{animation:none}}
 
 /* ---- live-data loading skeleton ---- */
@@ -4265,7 +4329,7 @@ function pgRoster(){
     ?pageHead(portalOf(me()),esc(L.session)+'s and packages','Who is booked, '+esc(L.client.toLowerCase())+' details for the day and package balances. Change times on the Calendar.',weekNav())
     :pageHead(portalOf(me()),'Daily roster','Who is onsite now, who arrives next and where cover is short. Add or move shifts on the Calendar.',weekNav());
   h+=locChips();
-  return h+'<div class="suitegrid">'+suiteNav(dstr)+'<div class="suitemain">'+(s==='booking'?renderBookingSuite(dstr):renderWorkforceSuite(dstr))+'</div></div>';
+  return h+'<div class="suitegrid">'+suiteNav(dstr)+'<div class="suitemain">'+(s==='booking'?renderBookingSuite(dstr):renderWorkforceSuite(dstr))+'</div></div>'+deskCard();
 }
 /* the suite that tracks people who work: onsite now, arriving later, coverage exceptions, hour by hour needs */
 function renderWorkforceSuite(dstr){
@@ -5426,6 +5490,83 @@ else if(DB.session&&DB.biz[DB.session.biz]){
   if(!r0){DB.session=null;CURB=null}else{ui.loc=activeLocs()[0].id;ui.page=(hp&&hp!=='client'&&PAGES[r0][hp])?hp:homeOf(r0)}
 }else{DB.session=null}
 paint();
+
+/* ---------- THE DESK (step 4) ----------------------------------------------------------------
+ Two controls a provider can actually press, both reading and writing the server and nothing else:
+   - the outstanding balances, each with Mark received, which writes the books row
+   - the upcoming appointments as a checklist, by date and time, with Select all, for when a child
+     is away for a fortnight - and the customer is told the moment the removal lands.
+ Server mode only. The offline single file keeps its own local paths and never shows this. */
+function deskFetch(path,method,payload){
+if(!serverMode()) return Promise.reject(new Error('This page is not connected to a server.'));
+return fetch(remoteBase()+path,{method:method||'GET',headers:{'content-type':'application/json','authorization':'Bearer '+REMOTE.token},body:payload==null?undefined:JSON.stringify(payload),credentials:'omit'})
+  .then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok)throw new Error((j&&j.error&&(j.error.message||j.error))||('Request failed ('+r.status+')'));return j})});
+}
+function deskCard(){
+if(!serverMode()) return '';
+return '<div class="card" id="deskCard" style="margin-top:14px;display:grid;gap:10px">'
+ +'<div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+ +'<div><h3 style="margin:0">The desk</h3><div class="muted sm">Cash and Venmo balances, and the appointments behind them.</div></div>'
+ +'<button class="btn pri" data-desk="load" style="min-height:48px;padding:12px 18px">Open the desk ledger</button>'
+ +'</div><div id="deskBody" style="display:none;gap:12px"></div></div>';
+}
+function deskTime(x){var d=x&&x.starts_at?new Date(x.starts_at):null;if(!d||isNaN(d))return '';return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+' at '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}
+function deskLoad(){
+var el=document.getElementById('deskBody'); if(!el) return;
+el.style.display='grid'; el.innerHTML='<p class="sm muted">Loading the desk…</p>';
+deskFetch('/api/v1/ledger').then(function(L){
+  var out=(L.outstanding||[]);
+  var h='<div class="card" style="display:grid;gap:8px"><div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<div><div class="eyebrow">Owed to you</div><b class="mono" style="font-size:22px">'+money(L.total_outstanding_cents||0)+'</b></div>'
+    +'<div class="sm muted">'+out.length+' booking'+(out.length===1?'':'s')+' not yet paid</div></div>';
+  h+= out.length? out.map(function(x){
+    return '<div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:8px">'
+     +'<div><b>'+esc(x.person_name||'Customer')+'</b><div class="sm muted">'+deskTime(x)+(x.offering_name?' · '+esc(x.offering_name):'')+'</div></div>'
+     +'<div class="row" style="gap:8px;align-items:center"><b class="mono">'+money(x.cents||0)+'</b>'
+     +'<button class="btn" data-desk="paid" data-slot="'+esc(x.id)+'" style="min-height:48px;padding:10px 16px">Mark received</button></div></div>';
+  }).join('') : '<p class="sm muted">Everyone is settled up.</p>';
+  h+='</div>';
+  h+='<div class="card" style="display:grid;gap:8px"><div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<div><h3 style="margin:0">Take appointments off</h3><div class="muted sm">Tick the dates to cancel, then remove them together. The time goes straight back on offer and the customer is told.</div></div>'
+    +'<button class="btn" data-desk="all" style="min-height:48px;padding:10px 16px">Select all</button></div>';
+  h+= out.length? out.map(function(x){
+    return '<label class="row" style="gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px;min-height:48px">'
+     +'<input type="checkbox" data-pick="'+esc(x.id)+'" style="width:24px;height:24px;min-width:24px">'
+     +'<span><b>'+esc(x.person_name||'Customer')+'</b><div class="sm muted">'+deskTime(x)+'</div></span></label>';
+  }).join('') : '<p class="sm muted">Nothing upcoming to remove.</p>';
+  h+='<div class="row" style="gap:10px;flex-wrap:wrap"><button class="btn pri" data-desk="remove" style="min-height:48px;padding:12px 18px">Remove the ticked appointments</button>'
+    +'<button class="btn" data-desk="none" style="min-height:48px;padding:12px 18px">Clear ticks</button></div></div>';
+  el.innerHTML=h;
+}).catch(function(e){ el.innerHTML='<p class="sm" style="color:var(--bad)">The desk could not be opened: '+esc(e.message||'no answer from the server')+'</p>' });
+}
+function deskPaid(slot,btn){
+if(!slot) return;
+btn.disabled=true; btn.textContent='Saving…';
+deskFetch('/api/v1/ledger/'+encodeURIComponent(slot)+'/received','POST',{method:'cash'})
+  .then(function(){ deskLoad(); })
+  .catch(function(e){ btn.disabled=false; btn.textContent='Mark received'; alert('That did not save: '+e.message) });
+}
+function deskRemove(){
+var picks=[].slice.call(document.querySelectorAll('[data-pick]')).filter(function(c){return c.checked}).map(function(c){return c.getAttribute('data-pick')});
+if(!picks.length){ alert('Tick the appointments to remove first.'); return; }
+if(!confirm('Remove '+picks.length+' appointment'+(picks.length===1?'':'s')+'? The time goes back on offer and the customer is told which dates were cancelled.')) return;
+deskFetch('/api/v1/appointments/remove','POST',{slot_ids:picks}).then(function(r){
+  var n=(r.removed||[]).length;
+  alert('Removed '+n+' appointment'+(n===1?'':'s')+'. '
+    +((r.notices&&r.notices.length)?('The customer has been told which dates went and which are still theirs'+(r.not_notified?(', and '+r.not_notified+' had no account on file.'):'.')):'No account was on file to notify.'));
+  deskLoad();
+}).catch(function(e){ alert('That did not save: '+e.message) });
+}
+document.addEventListener('click',function(e){
+var b=e.target&&e.target.closest?e.target.closest('[data-desk]'):null; if(!b) return;
+e.preventDefault();
+var k=b.getAttribute('data-desk');
+if(k==='load') deskLoad();
+else if(k==='paid') deskPaid(b.getAttribute('data-slot'),b);
+else if(k==='remove') deskRemove();
+else if(k==='all') [].slice.call(document.querySelectorAll('[data-pick]')).forEach(function(c){c.checked=true});
+else if(k==='none') [].slice.call(document.querySelectorAll('[data-pick]')).forEach(function(c){c.checked=false});
+});
 })();
 
 </script>
